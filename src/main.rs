@@ -202,10 +202,10 @@ fn main() {
                 let file = PathBuf::from(get_filename_by_date(year, month, day));
                 println!("Loading file {:?}", file);
                 let file = serde_json::from_str(fs::read_to_string(file).expect("could not read file").as_str()).unwrap();
-                print_day_stats(&file);
+                print_day_stats(&file, false);
             },
             "t" | "today" => {
-                print_day_stats(&day);
+                print_day_stats(&day, true);
             },
             "s" | "split" => {
                 let now_or_last_entry = day.now_or_last_entry();
@@ -232,10 +232,10 @@ fn main() {
     save_file(&mut day, file.as_path());
 }
 
-fn print_day_stats(day: &Day) {
+fn print_day_stats(day: &Day, with_current_time: bool) {
     let first_non_empty = day.first_non_empty();
     day.slots().for_each(|(s, o)| {
-        if *s <= *SlotRef::now() && (first_non_empty.is_none() || *s >= *first_non_empty.unwrap()) {
+        if (!with_current_time || *s <= *SlotRef::now()) && (first_non_empty.is_none() || *s >= *first_non_empty.unwrap()) {
             println!("{}-{} - {}", s, s.next(), if let Some(occ) = o { occ.to_string() } else { "empty".to_string() });
         }
     });
