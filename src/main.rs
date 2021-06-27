@@ -10,7 +10,10 @@ use serde_derive::{Serialize, Deserialize};
 use std::str::FromStr;
 use std::io::{BufRead, Write};
 use colored::*;
+use std::process::Command;
+use std::fmt::Write as FmtWrite;
 
+pub const EDITOR: &str = "nvim";
 pub const DAY_SLOTS: usize = 48;
 pub const DAY_START: SlotRef = SlotRef(8);
 pub const COLORS: [&str; 7] = [
@@ -31,7 +34,7 @@ fn get_input() -> Option<usize> {
     Some(number)
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
 struct Occupation {
     name: String,
     productive: bool
@@ -49,6 +52,10 @@ impl Occupation {
             Occupation { name: "Unterwegs".to_string(), productive: false },
             Occupation { name: "Zocken".to_string(), productive: false },
         ]
+    }
+    
+    fn get_by_name(occps: &[Occupation], name: &str) -> Option<Self> {
+        occps.iter().find(|o| o.name == name).cloned()
     }
     
     fn prompt(occps: &[Occupation]) -> Option<&Occupation> {
@@ -187,6 +194,7 @@ fn main() {
                 println!("\ttoday (t): Print statistics for today.");
                 println!("\tday (d): Print statistics for certain day.");
                 println!("\tsplit (s): Split the time since the last recorded activity in two.");
+                println!("\tedit (e): Edit activities for today in text editor.");
             },
             "d" | "day" => {
                 let time = Local::now() - Duration::hours((*DAY_START / 2) as i64);
@@ -202,10 +210,33 @@ fn main() {
                 let file = PathBuf::from(get_filename_by_date(year, month, day));
                 println!("Loading file {:?}", file);
                 let file = serde_json::from_str(fs::read_to_string(file).expect("could not read file").as_str()).unwrap();
-                print_day_stats(&file, false);
+                print_day_stats(&file, false, true);
             },
             "t" | "today" => {
-                print_day_stats(&day, true);
+                print_day_stats(&day, true, true);
+            },
+            "w" | "week" => {
+                unimplemented!()
+            },
+            "e" | "edit" => {
+                let tmp_file = PathBuf::from_str("/tmp/time-track.tmp").unwrap();
+                let mut data = String::new();
+                day.slots().for_each(|(s, o)| {
+                    writeln!(&mut data, "{}-{} - {}", s, s.next(), if let Some(occ) = o { occ.name.clone() } else { "empty".to_string() });
+                });
+                fs::write(&tmp_file, data);
+                let exit_code = Command::new(EDITOR)
+                    .arg(tmp_file.to_str().unwrap())
+                    .status()
+                    .expect("could not open editor");
+                if !exit_code.success() {
+                    println!("Editor exited with non-zero exit code!");
+                } else {
+                    let data = fs::read_to_string(tmp_file).expect("could not read file");
+                    day.time_slots = data.lines().enumerate().map(|(i, o)| {
+                        Occupation::get_by_name(&occupations, &o[14..])
+                    }).collect();
+                }
             },
             "s" | "split" => {
                 let now_or_last_entry = day.now_or_last_entry();
@@ -232,10 +263,10 @@ fn main() {
     save_file(&mut day, file.as_path());
 }
 
-fn print_day_stats(day: &Day, with_current_time: bool) {
+fn print_day_stats(day: &Day, with_current_time: bool, trim_start: bool) {
     let first_non_empty = day.first_non_empty();
     day.slots().for_each(|(s, o)| {
-        if (!with_current_time || *s <= *SlotRef::now()) && (first_non_empty.is_none() || *s >= *first_non_empty.unwrap()) {
+        if (!with_current_time || *s <= *SlotRef::now()) && (!trim_start || first_non_empty.is_none() || *s >= *first_non_empty.unwrap()) {
             println!("{}-{} - {}", s, s.next(), if let Some(occ) = o { occ.to_string() } else { "empty".to_string() });
         }
     });
@@ -270,4 +301,11 @@ pub fn test_slots() {
     assert_eq!(format!("{}", slot), "04:00");
     let slot = SlotRef(47);
     assert_eq!(format!("{}", slot), "03:30");
+}
+
+#[test]
+pub fn test_get_by_name() {
+    let occupations = Occupation::get_all();
+    assert_eq!(Occupation::get_by_name(&occupations, &*occupations[0].name), Some(occupations[0].clone()));
+    assert_eq!(Occupation::get_by_name(&occupations, "empty"), None);
 }
