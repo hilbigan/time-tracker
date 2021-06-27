@@ -232,11 +232,16 @@ impl UI {
             println!("{}", "There's nothing to split!".red());
             return;
         }
-        println!("Where to split?");
-        for (i, s) in possible_slots.iter().enumerate() {
-            println!("{}: {}", i, SlotRef(*s));
-        }
-        if let Some(choice) = get_input() {
+        let choice = if possible_slots.len() == 1 {
+            0
+        } else {
+            println!("Where to split?");
+            for (i, s) in possible_slots.iter().enumerate() {
+                println!("{}: {}", i, SlotRef(*s));
+            }
+            get_input()
+        };
+        if let Some(choice) = choice {
             self.ask_about_activity(now_or_last_entry, SlotRef(possible_slots[choice]));
             self.day.write(self.file.as_path());
             self.ask_about_activity(SlotRef(possible_slots[choice]), SlotRef::now().next());
@@ -315,18 +320,22 @@ fn main() {
     ui.save();
 }
 
-#[test]
-pub fn test_slots() {
-    let slot = SlotRef(0);
-    assert_eq!(*slot, 0);
-    assert_eq!(format!("{}", slot), "04:00");
-    let slot = SlotRef(47);
-    assert_eq!(format!("{}", slot), "03:30");
-}
-
-#[test]
-pub fn test_get_by_name() {
-    let activities = Activity::get_all();
-    assert_eq!(Activity::get_by_name(&activities, &*activities[0].name), Some(activities[0].clone()));
-    assert_eq!(Activity::get_by_name(&activities, "empty"), None);
+mod tests {
+    use super::*;
+    
+    #[test]
+    pub fn test_slots() {
+        let slot = SlotRef(0);
+        assert_eq!(*slot, 0);
+        assert_eq!(format!("{}", slot), "04:00");
+        let slot = SlotRef(47);
+        assert_eq!(format!("{}", slot), "03:30");
+    }
+    
+    #[test]
+    pub fn test_get_by_name() {
+        let activities = Activity::get_all();
+        assert_eq!(Activity::get_by_name(&activities, &*activities[0].name), Some(activities[0].clone()));
+        assert_eq!(Activity::get_by_name(&activities, "empty"), None);
+    }
 }
