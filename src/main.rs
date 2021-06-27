@@ -281,6 +281,7 @@ fn main() {
                 println!("Commands:");
                 println!("\ttoday (t): Print statistics for today.");
                 println!("\tday (d): Print statistics for certain day.");
+                println!("\tweek (w): Print statistics for last seven days.");
                 println!("\tsplit (s): Split the time since the last recorded activity in two.");
                 println!("\tedit (e): Edit activities for today in text editor.");
             },
@@ -304,7 +305,20 @@ fn main() {
                 ui.day.print_stats(true, true);
             },
             "w" | "week" => {
-                unimplemented!()
+                let mut days = Vec::with_capacity(7);
+                for i in (0..7).rev() {
+                    let time = Local::now() - Duration::days(i);
+                    let file = PathBuf::from(get_filename_by_date(time.year() as usize, time.month() as usize, time.day() as usize));
+                    if file.exists() {
+                        let day: Day = serde_json::from_str(fs::read_to_string(file).expect("could not read file").as_str()).unwrap();
+                        println!("{}: {} hrs., Score: {:0.2}", time.weekday().to_string(), day.hours_productive(), day.score());
+                        days.push(day);
+                    }
+                }
+                println!("Aggregated statistics from the last {} days:", days.len());
+                let hours: usize = days.iter().map(|d| d.hours_productive() as usize).sum();
+                let score = hours as f32 / (days.len() as f32 * 12.);
+                println!("Hours Productive: {}, Score: {:0.2}", hours, score);
             },
             "e" | "edit" => {
                 ui.edit_with_text_editor();
