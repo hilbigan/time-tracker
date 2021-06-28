@@ -15,7 +15,7 @@ use std::fmt::Write as FmtWrite;
 
 pub const EDITOR: &str = "nvim";
 pub const DAY_SLOTS: usize = 48;
-pub const DAY_START: SlotRef = SlotRef(8);
+pub const DAY_START: Slot = Slot(8);
 pub const COLORS: [&str; 7] = [
     "red",
     "green",
@@ -85,25 +85,25 @@ impl Display for Activity {
 }
 
 #[derive(Copy, Clone)]
-pub struct SlotRef(usize);
-impl SlotRef {
-    fn now() -> SlotRef {
+pub struct Slot(usize);
+impl Slot {
+    fn now() -> Slot {
         let local = Local::now();
         let hour = local.hour();
         let minute = local.minute();
-        SlotRef((((hour * 2 + if minute > 30 { 1 } else { 0 }) as isize - *DAY_START as isize + DAY_SLOTS as isize) as usize) % DAY_SLOTS)
+        Slot((((hour * 2 + if minute > 30 { 1 } else { 0 }) as isize - *DAY_START as isize + DAY_SLOTS as isize) as usize) % DAY_SLOTS)
     }
     
-    fn next(&self) -> SlotRef {
-        SlotRef(self.0 + 1)
+    fn next(&self) -> Slot {
+        Slot(self.0 + 1)
     }
     
-    fn previous(&self) -> SlotRef {
-        SlotRef(self.0 - 1)
+    fn previous(&self) -> Slot {
+        Slot(self.0 - 1)
     }
 }
 
-impl Deref for SlotRef {
+impl Deref for Slot {
     type Target = usize;
     
     fn deref(&self) -> &Self::Target {
@@ -111,7 +111,7 @@ impl Deref for SlotRef {
     }
 }
 
-impl Display for SlotRef {
+impl Display for Slot {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let shifted = (self.deref() + *DAY_START) % DAY_SLOTS;
         let hour = shifted / 2;
@@ -133,27 +133,27 @@ impl Default for Day {
 }
 
 impl Day {
-    pub fn entry_before_now(&self) -> Option<(SlotRef, &Activity)> {
-        (*DAY_START .. *SlotRef::now()).rev().into_iter()
+    pub fn entry_before_now(&self) -> Option<(Slot, &Activity)> {
+        (*DAY_START .. *Slot::now()).rev().into_iter()
             .map(|s| (s, &self.time_slots[s])).find(|it| it.1.is_some())
-            .and_then(|(s, o)| Some((SlotRef(s), o.as_ref().unwrap())))
+            .and_then(|(s, o)| Some((Slot(s), o.as_ref().unwrap())))
     }
     
-    pub fn slots(&self) -> impl Iterator<Item = (SlotRef, &Option<Activity>)> {
+    pub fn slots(&self) -> impl Iterator<Item = (Slot, &Option<Activity>)> {
         self.time_slots.iter().enumerate().map(|(s, o)| {
-            (SlotRef(s), o)
+            (Slot(s), o)
         })
     }
     
-    pub fn first_non_empty(&self) -> Option<SlotRef> {
-        self.time_slots.iter().enumerate().find(|(s, o)| o.is_some()).map(|(s, _)| SlotRef(s))
+    pub fn first_non_empty(&self) -> Option<Slot> {
+        self.time_slots.iter().enumerate().find(|(s, o)| o.is_some()).map(|(s, _)| Slot(s))
     }
     
-    pub fn now_or_last_entry(&self) -> SlotRef {
+    pub fn now_or_last_entry(&self) -> Slot {
         if let Some(entry) = self.entry_before_now() {
             entry.0.next()
         } else {
-            SlotRef::now()
+            Slot::now()
         }
     }
     
@@ -168,7 +168,7 @@ impl Day {
     fn print_stats(&self, with_current_time: bool, trim_start: bool) {
         let first_non_empty = self.first_non_empty();
         self.slots().for_each(|(s, o)| {
-            if (!with_current_time || *s <= *SlotRef::now()) && (!trim_start || first_non_empty.is_none() || *s >= *first_non_empty.unwrap()) {
+            if (!with_current_time || *s <= *Slot::now()) && (!trim_start || first_non_empty.is_none() || *s >= *first_non_empty.unwrap()) {
                 println!("{}-{} - {}", s, s.next(), if let Some(act) = o { act.to_string() } else { "empty".to_string() });
             }
         });
@@ -187,7 +187,7 @@ struct UI {
 }
 
 impl UI {
-    fn ask_about_activity(&mut self, start: SlotRef, end: SlotRef) {
+    fn ask_about_activity(&mut self, start: Slot, end: Slot) {
         println!("What did you do from {} - {}?", start.to_string().yellow(), end.to_string().yellow());
         let act = Activity::prompt(&self.activities);
         if let Some(act) = act {
@@ -198,10 +198,10 @@ impl UI {
     }
     
     fn ask_about_activity_now(&mut self) {
-        let now = *SlotRef::now();
+        let now = *Slot::now();
         let start = self.day.now_or_last_entry();
         let end = now + 1;
-        self.ask_about_activity(start, SlotRef(end));
+        self.ask_about_activity(start, Slot(end));
     }
     
     fn edit_with_text_editor(&mut self) {
@@ -227,7 +227,7 @@ impl UI {
     
     fn split(&mut self) {
         let now_or_last_entry = self.day.now_or_last_entry();
-        let possible_slots = (*now_or_last_entry + 1 .. *SlotRef::now() + 1).into_iter().collect::<Vec<_>>();
+        let possible_slots = (*now_or_last_entry + 1 .. *Slot::now() + 1).into_iter().collect::<Vec<_>>();
         if possible_slots.is_empty() {
             println!("{}", "There's nothing to split!".red());
             return;
@@ -237,14 +237,14 @@ impl UI {
         } else {
             println!("Where to split?");
             for (i, s) in possible_slots.iter().enumerate() {
-                println!("{}: {}", i, SlotRef(*s));
+                println!("{}: {}", i, Slot(*s));
             }
             get_input()
         };
         if let Some(choice) = choice {
-            self.ask_about_activity(now_or_last_entry, SlotRef(possible_slots[choice]));
+            self.ask_about_activity(now_or_last_entry, Slot(possible_slots[choice]));
             self.day.write(self.file.as_path());
-            self.ask_about_activity(SlotRef(possible_slots[choice]), SlotRef::now().next());
+            self.ask_about_activity(Slot(possible_slots[choice]), Slot::now().next());
         }
     }
     
@@ -263,11 +263,11 @@ fn main() {
         println!("Using new file {:?}", file);
         Day::default()
     };
-    let now = *SlotRef::now();
+    let now = *Slot::now();
     if let Some(entry) = day.entry_before_now() {
         println!("Recent activity: {} (until {})", entry.1, entry.0.next());
     }
-    println!("Current slot: {} ({})", SlotRef::now(),
+    println!("Current slot: {} ({})", Slot::now(),
              if let Some(act) = &day.time_slots[now] {
                  format!("{}", act)
              } else {
@@ -339,10 +339,10 @@ mod tests {
     
     #[test]
     pub fn test_slots() {
-        let slot = SlotRef(0);
+        let slot = Slot(0);
         assert_eq!(*slot, 0);
         assert_eq!(format!("{}", slot), "04:00");
-        let slot = SlotRef(47);
+        let slot = Slot(47);
         assert_eq!(format!("{}", slot), "03:30");
     }
     
