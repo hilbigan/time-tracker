@@ -10,10 +10,11 @@ use serde_derive::{Serialize, Deserialize};
 use std::str::FromStr;
 use std::io::{BufRead, Write};
 use colored::*;
-use std::process::Command;
+use std::process::{Command, exit};
 use std::fmt::Write as FmtWrite;
+use directories::BaseDirs;
 
-pub const EDITOR: &str = "nvim";
+pub const CONFIG_FILENAME: &str = "ttrc.toml";
 pub const DAY_SLOTS: usize = 48;
 pub const DAY_START: Slot = Slot(8);
 pub const COLORS: [&str; 7] = [
@@ -34,13 +35,37 @@ fn get_input() -> Option<usize> {
     Some(number)
 }
 
-fn get_filename_today() -> String {
-    let time = Local::now() - Duration::hours((*DAY_START / 2) as i64);
-    get_filename_by_date(time.year() as usize, time.month() as usize, time.day() as usize)
+fn get_base_dirs() -> BaseDirs {
+    directories::BaseDirs::new().expect("base_dirs")
 }
 
-fn get_filename_by_date(year: usize, month: usize, day: usize) -> String {
-    format!("/home/aaron/.local/share/{}-{}-{}.json", year, month, day)
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+struct Settings {
+    editor: String,
+    data_dir: PathBuf,
+    activities: Vec<Activity>
+}
+
+impl Default for Settings {
+    fn default() -> Self {
+        Settings {
+            editor: "vim".to_string(),
+            data_dir: get_base_dirs().data_dir().into(),
+            activities: vec![]
+        }
+    }
+}
+
+impl Settings {
+    fn get_filename_today(&self) -> String {
+        let time = Local::now() - Duration::hours((*DAY_START / 2) as i64);
+        self.get_filename_by_date(time.year() as usize, time.month() as usize, time.day() as usize)
+    }
+    
+    fn get_filename_by_date(&self, year: usize, month: usize, day: usize) -> String {
+        self.data_dir.join(format!("{}-{}-{}.json", year, month, day)).to_str().unwrap().into()
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
@@ -50,19 +75,6 @@ struct Activity {
 }
 
 impl Activity {
-    fn get_all() -> Vec<Activity> {
-        vec![
-            Activity { name: "Arbeit".to_string(), productive: true },
-            Activity { name: "Baustelle".to_string(), productive: true },
-            Activity { name: "Hobby".to_string(), productive: true },
-            Activity { name: "Pause".to_string(), productive: false },
-            Activity { name: "Programmieren".to_string(), productive: true },
-            Activity { name: "Uni".to_string(), productive: true },
-            Activity { name: "Unterwegs".to_string(), productive: false },
-            Activity { name: "Zocken".to_string(), productive: false },
-        ]
-    }
-    
     fn get_by_name(actis: &[Activity], name: &str) -> Option<Self> {
         actis.iter().find(|o| o.name == name).cloned()
     }
@@ -180,16 +192,16 @@ impl Day {
     }
 }
 
-struct UI {
+struct UI<'d> {
     day: Day,
     file: PathBuf,
-    activities: Vec<Activity>
+    settings: &'d Settings
 }
 
-impl UI {
+impl UI<'_> {
     fn ask_about_activity(&mut self, start: Slot, end: Slot) {
         println!("What did you do from {} - {}?", start.to_string().yellow(), end.to_string().yellow());
-        let act = Activity::prompt(&self.activities);
+        let act = Activity::prompt(&self.settings.activities);
         if let Some(act) = act {
             for s in *start .. *end {
                 self.day.time_slots[s] = Some(act.clone());
@@ -211,7 +223,7 @@ impl UI {
             writeln!(&mut data, "{}-{} - {}", s, s.next(), if let Some(act) = o { act.name.clone() } else { "empty".to_string() });
         });
         fs::write(&tmp_file, data);
-        let exit_code = Command::new(EDITOR)
+        let exit_code = Command::new(&self.settings.editor)
             .arg(tmp_file.to_str().unwrap())
             .status()
             .expect("could not open editor");
@@ -220,7 +232,7 @@ impl UI {
         } else {
             let data = fs::read_to_string(tmp_file).expect("could not read file");
             self.day.time_slots = data.lines().enumerate().map(|(i, o)| {
-                Activity::get_by_name(&self.activities, &o[14..])
+                Activity::get_by_name(&self.settings.activities, &o[14..])
             }).collect();
         }
     }
@@ -254,10 +266,23 @@ impl UI {
 }
 
 fn main() {
-    let activities = Activity::get_all();
-    let file = PathBuf::from(get_filename_today());
+    let settings_file = get_base_dirs().config_dir().join(CONFIG_FILENAME.to_string());
+    if !settings_file.exists() {
+        let mut settings = Settings::default();
+        settings.activities.push(Activity { name: "Example".to_string(), productive: false });
+        settings.activities.push(Activity { name: "Second Example".to_string(), productive: true });
+        let settings_str = toml::to_string(&settings).expect("seriaize");
+        fs::write(&settings_file, settings_str);
+        println!("I have created a new config file here: {:?}", settings_file);
+        println!("Please edit it and restart the program! :)");
+        return;
+    }
+    let settings: Settings = toml::from_str(
+        fs::read_to_string(&settings_file).expect("read settings").as_str()
+    ).expect("parse settingsa");
+    
+    let file = PathBuf::from(settings.get_filename_today());
     let mut day = if file.exists() {
-        println!("Reading from {:?}", file);
         serde_json::from_str(fs::read_to_string(file.clone()).expect("could not read file").as_str()).unwrap()
     } else {
         println!("Using new file {:?}", file);
@@ -274,7 +299,7 @@ fn main() {
                  "no activity so far".bold().to_string()
              }
     );
-    let mut ui = UI { day, file, activities };
+    let mut ui = UI { day, file: file.clone(), settings: &settings };
     if let Some(arg) = std::env::args().nth(1) {
         match arg.as_str() {
             "h" | "help" => {
@@ -284,6 +309,9 @@ fn main() {
                 println!("\tweek (w): Print statistics for last seven days.");
                 println!("\tsplit (s): Split the time since the last recorded activity in two.");
                 println!("\tedit (e): Edit activities for today in text editor.");
+                println!();
+                println!("Current data file: {:?}", &file);
+                println!("Config file: {:?}", &settings_file);
             },
             "d" | "day" => {
                 let time = Local::now() - Duration::hours((*DAY_START / 2) as i64);
@@ -296,7 +324,7 @@ fn main() {
                 let month = get_input().unwrap_or(default_month);
                 print!("Day [{}] ", default_day);
                 let day = get_input().unwrap_or(default_day);
-                let file = PathBuf::from(get_filename_by_date(year, month, day));
+                let file = PathBuf::from(settings.get_filename_by_date(year, month, day));
                 println!("Loading file {:?}", file);
                 let day: Day = serde_json::from_str(fs::read_to_string(file).expect("could not read file").as_str()).unwrap();
                 day.print_stats(false, true);
@@ -308,11 +336,13 @@ fn main() {
                 let mut days = Vec::with_capacity(7);
                 for i in (0..7).rev() {
                     let time = Local::now() - Duration::days(i);
-                    let file = PathBuf::from(get_filename_by_date(time.year() as usize, time.month() as usize, time.day() as usize));
+                    let file = PathBuf::from(settings.get_filename_by_date(time.year() as usize, time.month() as usize, time.day() as usize));
                     if file.exists() {
                         let day: Day = serde_json::from_str(fs::read_to_string(file).expect("could not read file").as_str()).unwrap();
-                        println!("{}: {} hrs., Score: {:0.2}", time.weekday().to_string(), day.hours_productive(), day.score());
+                        println!("{}, {:02}.{:02}.: {:0.1} hrs., Score: {:0.2}", time.weekday().to_string(), time.day(), time.month(), day.hours_productive(), day.score());
                         days.push(day);
+                    } else {
+                        println!("{}, {:02}.{:02}.: no data", time.weekday().to_string(), time.day(), time.month());
                     }
                 }
                 println!("Aggregated statistics from the last {} days:", days.len());
@@ -348,7 +378,10 @@ mod tests {
     
     #[test]
     pub fn test_get_by_name() {
-        let activities = Activity::get_all();
+        let activities = vec![
+            Activity { name: "a".to_string(), productive: false },
+            Activity { name: "b".to_string(), productive: false },
+        ];
         assert_eq!(Activity::get_by_name(&activities, &*activities[0].name), Some(activities[0].clone()));
         assert_eq!(Activity::get_by_name(&activities, "empty"), None);
     }
