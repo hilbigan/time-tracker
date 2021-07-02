@@ -13,8 +13,9 @@ use colored::*;
 use std::process::{Command, exit};
 use std::fmt::Write as FmtWrite;
 use directories::BaseDirs;
-use std::collections::HashSet;
+use std::collections::{HashSet, HashMap};
 use std::cell::RefCell;
+use std::borrow::Borrow;
 
 pub const CONFIG_FILENAME: &str = "ttrc.toml";
 pub const DAY_SLOTS: usize = 48;
@@ -96,7 +97,7 @@ impl Settings {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq, Hash)]
 struct Activity {
     name: String,
     productive: bool
@@ -303,6 +304,40 @@ impl UI<'_> {
         }
     }
     
+    /// Print statistics for multiple days. Might skip some days if the corresponding data
+    /// files do not exist.
+    fn multiday_statistics(&self, dates: impl Iterator<Item = DateTime<Local>>, print_days: bool) {
+        let mut days = Vec::new();
+        for date in dates {
+            let time = date.borrow();
+            let file = PathBuf::from(self.settings.get_filename_by_date(time.year() as usize, time.month() as usize, time.day() as usize));
+            if file.exists() {
+                let day: Day = serde_json::from_str(fs::read_to_string(file).expect("could not read file").as_str()).unwrap();
+                if print_days {
+                    println!("{}, {:02}.{:02}.: {:4.1} hrs., Score: {:0.2}", time.weekday().to_string(), time.day(), time.month(), day.hours_productive(), day.score());
+                }
+                days.push(day);
+            } else if print_days {
+                println!("{}, {:02}.{:02}.: no data", time.weekday().to_string(), time.day(), time.month());
+            }
+        }
+        let hours: f32 = days.iter().map(|d| d.hours_productive()).sum();
+        let hours_by_activity: HashMap<Activity, f32> = HashMap::from(self.settings.activities.iter().map(|activity| {
+            (activity.clone(), days.iter().map(|d| {
+                d.time_slots.iter().filter(|activity_at_time| {
+                    activity_at_time.is_some() && activity_at_time.as_ref().unwrap() == activity
+                }).count() as f32 / 2.
+            }).sum())
+        }).collect());
+        let score = hours as f32 / (days.len() as f32 * 12.);
+        
+        println!("Aggregated statistics from the last {} days:", days.len());
+        println!("Hours Productive: {}, Score: {:0.2}", hours, score);
+        hours_by_activity.iter().for_each(|(activity, hours)| {
+            println!("* {:4.1} hrs. {}", hours, activity);
+        });
+    }
+    
     fn save(&self) {
         self.day.write(&self.file);
     }
@@ -376,23 +411,11 @@ fn main() {
                 ui.day.print_stats(true, true);
             },
             "w" | "week" => {
-                let mut days = Vec::with_capacity(7);
-                for i in (0..7).rev() {
-                    let time = Local::now() - Duration::days(i);
-                    let file = PathBuf::from(settings.get_filename_by_date(time.year() as usize, time.month() as usize, time.day() as usize));
-                    if file.exists() {
-                        let day: Day = serde_json::from_str(fs::read_to_string(file).expect("could not read file").as_str()).unwrap();
-                        println!("{}, {:02}.{:02}.: {:0.1} hrs., Score: {:0.2}", time.weekday().to_string(), time.day(), time.month(), day.hours_productive(), day.score());
-                        days.push(day);
-                    } else {
-                        println!("{}, {:02}.{:02}.: no data", time.weekday().to_string(), time.day(), time.month());
-                    }
-                }
-                println!("Aggregated statistics from the last {} days:", days.len());
-                let hours: usize = days.iter().map(|d| d.hours_productive() as usize).sum();
-                let score = hours as f32 / (days.len() as f32 * 12.);
-                println!("Hours Productive: {}, Score: {:0.2}", hours, score);
+                ui.multiday_statistics((0..7).rev().map(|i| Local::now() - Duration::days(i)), true);
             },
+            "y" | "year" => {
+                ui.multiday_statistics((0..365).rev().map(|i| Local::now() - Duration::days(i)), false);
+            }
             "e" | "edit" => {
                 ui.edit_with_text_editor();
             },
