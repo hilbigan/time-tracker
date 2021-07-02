@@ -13,6 +13,8 @@ use colored::*;
 use std::process::{Command, exit};
 use std::fmt::Write as FmtWrite;
 use directories::BaseDirs;
+use std::collections::HashSet;
+use std::cell::RefCell;
 
 pub const CONFIG_FILENAME: &str = "ttrc.toml";
 pub const DAY_SLOTS: usize = 48;
@@ -35,6 +37,14 @@ fn get_input() -> Option<usize> {
     Some(number)
 }
 
+fn get_input_char() -> Option<char> {
+    print!("?: ");
+    io::stdout().flush();
+    let stdin = io::stdin();
+    let chr: char = stdin.lock().lines().next()?.ok()?.parse().ok()?;
+    Some(chr)
+}
+
 fn get_base_dirs() -> BaseDirs {
     directories::BaseDirs::new().expect("base_dirs")
 }
@@ -44,7 +54,9 @@ fn get_base_dirs() -> BaseDirs {
 struct Settings {
     editor: String,
     data_dir: PathBuf,
-    activities: Vec<Activity>
+    activities: Vec<Activity>,
+    #[serde(skip)]
+    shortcuts: RefCell<Option<Vec<Option<char>>>>
 }
 
 impl Default for Settings {
@@ -52,12 +64,28 @@ impl Default for Settings {
         Settings {
             editor: "vim".to_string(),
             data_dir: get_base_dirs().data_dir().into(),
-            activities: vec![]
+            activities: vec![],
+            shortcuts: RefCell::new(None)
         }
     }
 }
 
 impl Settings {
+    fn get_shortcuts(&self) -> Vec<Option<char>> {
+        if self.shortcuts.borrow().is_none() {
+            let mut shortcuts = Vec::with_capacity(self.activities.len());
+            for activity in &self.activities {
+                if let Some(chr) = activity.name.chars().find(|c| !shortcuts.contains(&Some(*c))) {
+                    shortcuts.push(Some(chr))
+                } else {
+                    shortcuts.push(None)
+                }
+            }
+            *self.shortcuts.borrow_mut() = Some(shortcuts);
+        }
+        self.shortcuts.borrow().as_ref().unwrap().clone()
+    }
+    
     fn get_filename_today(&self) -> String {
         let time = Local::now() - Duration::hours((*DAY_START / 2) as i64);
         self.get_filename_by_date(time.year() as usize, time.month() as usize, time.day() as usize)
@@ -79,12 +107,27 @@ impl Activity {
         actis.iter().find(|o| o.name == name).cloned()
     }
     
-    fn prompt(actis: &[Activity]) -> Option<&Activity> {
-        actis.iter().enumerate().for_each(|(i, o)| {
-            println!("\t{}: {}", i, o);
+    fn prompt(settings: &Settings) -> Option<&Activity> {
+        let shortcuts = settings.get_shortcuts();
+        settings.activities.iter().enumerate().for_each(|(i, o)| {
+            let mut name = o.to_string();
+            if let Some(chr) = &shortcuts[i] {
+                name = name.replacen(*chr, &format!("[{}]", chr), 1);
+            }
+            println!("\t{}: {}", i, name);
         });
-        let number = get_input()?;
-        Some(&actis[number])
+        let input = get_input_char()?;
+        let result = if input.is_numeric() {
+            Some(&settings.activities[input.to_digit(10).unwrap() as usize])
+        } else if input.is_alphabetic() {
+            shortcuts.iter().position(|s| s.is_some() && s.unwrap() == input).map(|i| &settings.activities[i])
+        } else {
+            None
+        };
+        if let Some(choice) = result {
+            println!("~> {}", choice);
+        }
+        result
     }
 }
 
@@ -201,7 +244,7 @@ struct UI<'d> {
 impl UI<'_> {
     fn ask_about_activity(&mut self, start: Slot, end: Slot) {
         println!("What did you do from {} - {}?", start.to_string().yellow(), end.to_string().yellow());
-        let act = Activity::prompt(&self.settings.activities);
+        let act = Activity::prompt(&self.settings);
         if let Some(act) = act {
             for s in *start .. *end {
                 self.day.time_slots[s] = Some(act.clone());
