@@ -15,6 +15,7 @@ use directories::BaseDirs;
 use std::collections::{HashMap};
 use std::cell::RefCell;
 use std::borrow::Borrow;
+use itertools::Itertools;
 
 pub const CONFIG_FILENAME: &str = "ttrc.toml";
 pub const DAY_SLOTS: usize = 48;
@@ -246,6 +247,19 @@ struct UI<'d> {
 }
 
 impl UI<'_> {
+    fn print_current_slot_info(&self) {
+        if let Some(entry) = self.day.entry_before_now() {
+            println!("Recent activity: {} (until {})", entry.1, entry.0.next());
+        }
+        println!("Current slot: {} ({})", Slot::now(),
+                 if let Some(act) = &self.day.time_slots[*Slot::now()] {
+                     format!("{}", act)
+                 } else {
+                     "no activity so far".bold().to_string()
+                 }
+        );
+    }
+    
     fn ask_about_activity(&mut self, start: Slot, end: Slot) {
         println!("What did you do from {} - {}?", start.to_string().yellow(), end.to_string().yellow());
         let act = Activity::prompt(&self.settings);
@@ -371,17 +385,6 @@ fn main() {
         println!("Using new file {:?}", file);
         Day::default()
     };
-    let now = *Slot::now();
-    if let Some(entry) = day.entry_before_now() {
-        println!("Recent activity: {} (until {})", entry.1, entry.0.next());
-    }
-    println!("Current slot: {} ({})", Slot::now(),
-             if let Some(act) = &day.time_slots[now] {
-                 format!("{}", act)
-             } else {
-                 "no activity so far".bold().to_string()
-             }
-    );
     let mut ui = UI { day, file: file.clone(), settings: &settings };
     if let Some(arg) = std::env::args().nth(1) {
         match arg.as_str() {
@@ -413,6 +416,7 @@ fn main() {
                 day.print_stats(false, true);
             },
             "t" | "today" => {
+                ui.print_current_slot_info();
                 ui.day.print_stats(true, true);
             },
             "w" | "week" => {
@@ -422,14 +426,20 @@ fn main() {
                 ui.multiday_statistics((0..365).rev().map(|i| Local::now() - Duration::days(i)), false);
             }
             "e" | "edit" => {
+                ui.print_current_slot_info();
                 ui.edit_with_text_editor();
             },
             "s" | "split" => {
+                ui.print_current_slot_info();
                 ui.split();
             },
-            _ => ui.ask_about_activity_now()
+            _ => {
+                ui.print_current_slot_info();
+                ui.ask_about_activity_now()
+            }
         }
     } else {
+        ui.print_current_slot_info();
         ui.ask_about_activity_now();
     }
     ui.save();
