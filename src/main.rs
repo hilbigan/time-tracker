@@ -1,19 +1,18 @@
 use chrono::{Local, Duration};
 use chrono::prelude::*;
 use std::fmt::{Display, Formatter};
-use std::error::Error;
 use std::{fmt, io};
-use std::ops::{Deref, Sub};
+use std::ops::{Deref};
 use std::path::{PathBuf, Path};
 use std::fs;
 use serde_derive::{Serialize, Deserialize};
 use std::str::FromStr;
 use std::io::{BufRead, Write};
 use colored::*;
-use std::process::{Command, exit};
+use std::process::{Command};
 use std::fmt::Write as FmtWrite;
 use directories::BaseDirs;
-use std::collections::{HashSet, HashMap};
+use std::collections::{HashMap};
 use std::cell::RefCell;
 use std::borrow::Borrow;
 
@@ -32,7 +31,7 @@ pub const COLORS: [&str; 7] = [
 
 fn get_input() -> Option<usize> {
     print!("?: ");
-    io::stdout().flush();
+    io::stdout().flush().expect("flush");
     let stdin = io::stdin();
     let number: usize = stdin.lock().lines().next()?.ok()?.parse().ok()?;
     Some(number)
@@ -40,7 +39,7 @@ fn get_input() -> Option<usize> {
 
 fn get_input_char() -> Option<char> {
     print!("?: ");
-    io::stdout().flush();
+    io::stdout().flush().expect("flush");
     let stdin = io::stdin();
     let chr: char = stdin.lock().lines().next()?.ok()?.parse().ok()?;
     Some(chr)
@@ -140,9 +139,10 @@ impl Display for Activity {
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub struct Slot(usize);
 impl Slot {
+    #[cfg(not(test))]
     fn now() -> Slot {
         let local = Local::now();
         let hour = local.hour();
@@ -150,12 +150,14 @@ impl Slot {
         Slot((((hour * 2 + if minute > 30 { 1 } else { 0 }) as isize - *DAY_START as isize + DAY_SLOTS as isize) as usize) % DAY_SLOTS)
     }
     
-    fn next(&self) -> Slot {
-        Slot(self.0 + 1)
+    /// Always return 12:00 for tests
+    #[cfg(test)]
+    fn now() -> Slot {
+        Slot(16)
     }
     
-    fn previous(&self) -> Slot {
-        Slot(self.0 - 1)
+    fn next(&self) -> Slot {
+        Slot(self.0 + 1)
     }
 }
 
@@ -191,8 +193,9 @@ impl Default for Day {
 impl Day {
     pub fn entry_before_now(&self) -> Option<(Slot, &Activity)> {
         (*DAY_START .. *Slot::now()).rev().into_iter()
-            .map(|s| (s, &self.time_slots[s])).find(|it| it.1.is_some())
-            .and_then(|(s, o)| Some((Slot(s), o.as_ref().unwrap())))
+            .map(|s| (s, &self.time_slots[s]))
+            .find(|it| it.1.is_some())
+            .map(|(s, o)| (Slot(s), o.as_ref().unwrap()))
     }
     
     pub fn slots(&self) -> impl Iterator<Item = (Slot, &Option<Activity>)> {
@@ -202,7 +205,7 @@ impl Day {
     }
     
     pub fn first_non_empty(&self) -> Option<Slot> {
-        self.time_slots.iter().enumerate().find(|(s, o)| o.is_some()).map(|(s, _)| Slot(s))
+        self.time_slots.iter().position(|s| s.is_some()).map(Slot)
     }
     
     pub fn now_or_last_entry(&self) -> Slot {
@@ -264,9 +267,11 @@ impl UI<'_> {
         let tmp_file = PathBuf::from_str("/tmp/time-track.tmp").unwrap();
         let mut data = String::new();
         self.day.slots().for_each(|(s, o)| {
-            writeln!(&mut data, "{}-{} - {}", s, s.next(), if let Some(act) = o { act.name.clone() } else { "empty".to_string() });
+            writeln!(&mut data, "{}-{} - {}", s, s.next(), if let Some(act) = o { act.name.clone() } else { "empty".to_string() })
+                .expect("write");
         });
-        fs::write(&tmp_file, data);
+        fs::write(&tmp_file, data)
+            .expect("write");
         let exit_code = Command::new(&self.settings.editor)
             .arg(tmp_file.to_str().unwrap())
             .status()
@@ -275,7 +280,7 @@ impl UI<'_> {
             println!("Editor exited with non-zero exit code!");
         } else {
             let data = fs::read_to_string(tmp_file).expect("could not read file");
-            self.day.time_slots = data.lines().enumerate().map(|(i, o)| {
+            self.day.time_slots = data.lines().map(|o| {
                 Activity::get_by_name(&self.settings.activities, &o[14..])
             }).collect();
         }
@@ -322,13 +327,13 @@ impl UI<'_> {
             }
         }
         let hours: f32 = days.iter().map(|d| d.hours_productive()).sum();
-        let hours_by_activity: HashMap<Activity, f32> = HashMap::from(self.settings.activities.iter().map(|activity| {
+        let hours_by_activity: HashMap<Activity, f32> = self.settings.activities.iter().map(|activity| {
             (activity.clone(), days.iter().map(|d| {
                 d.time_slots.iter().filter(|activity_at_time| {
                     activity_at_time.is_some() && activity_at_time.as_ref().unwrap() == activity
                 }).count() as f32 / 2.
             }).sum())
-        }).collect());
+        }).collect();
         let score = hours as f32 / (days.len() as f32 * 12.);
         
         println!("Aggregated statistics from the last {} days:", days.len());
@@ -350,7 +355,7 @@ fn main() {
         settings.activities.push(Activity { name: "Example".to_string(), productive: false });
         settings.activities.push(Activity { name: "Second Example".to_string(), productive: true });
         let settings_str = toml::to_string(&settings).expect("seriaize");
-        fs::write(&settings_file, settings_str);
+        fs::write(&settings_file, settings_str).expect("write");
         println!("I have created a new config file here: {:?}", settings_file);
         println!("Please edit it and restart the program! :)");
         return;
@@ -360,7 +365,7 @@ fn main() {
     ).expect("parse settingsa");
     
     let file = PathBuf::from(settings.get_filename_today());
-    let mut day = if file.exists() {
+    let day = if file.exists() {
         serde_json::from_str(fs::read_to_string(file.clone()).expect("could not read file").as_str()).unwrap()
     } else {
         println!("Using new file {:?}", file);
@@ -434,12 +439,28 @@ mod tests {
     use super::*;
     
     #[test]
+    pub fn test_first_non_empty() {
+        let activity = Activity { name: "a".to_string(), productive: false };
+        let mut day = Day::default();
+        day.time_slots[4 * 2] = Some(activity);
+        assert!(day.first_non_empty().is_some());
+        assert_eq!(day.first_non_empty().unwrap(), Slot(4 * 2));
+        assert_eq!(day.now_or_last_entry(), Slot(4 * 2 + 1));
+        
+        let day = Day::default();
+        assert!(day.first_non_empty().is_none());
+        assert_eq!(day.now_or_last_entry(), Slot::now());
+    }
+    
+    #[test]
     pub fn test_slots() {
         let slot = Slot(0);
         assert_eq!(*slot, 0);
         assert_eq!(format!("{}", slot), "04:00");
         let slot = Slot(47);
         assert_eq!(format!("{}", slot), "03:30");
+        let slot = Slot::now();
+        assert_eq!(format!("{}", slot), "12:00");
     }
     
     #[test]
