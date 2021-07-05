@@ -352,8 +352,16 @@ impl UI<'_> {
         
         println!("Aggregated statistics from the last {} days:", days.len());
         println!("Hours Productive: {}, Score: {:0.2}", hours, score);
-        hours_by_activity.iter().for_each(|(activity, hours)| {
-            println!("* {:4.1} hrs. {}", hours, activity);
+        hours_by_activity.iter()
+            .sorted_unstable_by_key(|(_, hours)| (**hours * -2.) as isize)
+            .enumerate()
+            .for_each(|(i, (activity, hours))| {
+                let str = format!("{:4.1} hrs. {}", hours, activity);
+                if i % 2 == 1 || i == hours_by_activity.len() - 1 {
+                    println!("{}", str);
+                } else {
+                    print!("{:40}", str);
+                }
         });
     }
     
