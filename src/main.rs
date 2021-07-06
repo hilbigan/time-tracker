@@ -7,7 +7,7 @@ use std::path::{PathBuf, Path};
 use std::fs;
 use serde_derive::{Serialize, Deserialize};
 use std::str::FromStr;
-use std::io::{BufRead, Write};
+use std::io::{BufRead, Write, ErrorKind};
 use colored::*;
 use std::process::{Command};
 use std::fmt::Write as FmtWrite;
@@ -16,6 +16,9 @@ use std::collections::{HashMap};
 use std::cell::RefCell;
 use std::borrow::Borrow;
 use itertools::Itertools;
+use std::convert::{TryFrom};
+
+#[feature(split_once)]
 
 pub const CONFIG_FILENAME: &str = "ttrc.toml";
 pub const DAY_SLOTS: usize = 48;
@@ -30,20 +33,12 @@ pub const COLORS: [&str; 7] = [
     "white",
 ];
 
-fn get_input() -> Option<usize> {
+fn get_input<T>() -> Option<T> where T: FromStr {
     print!("?: ");
     io::stdout().flush().expect("flush");
     let stdin = io::stdin();
-    let number: usize = stdin.lock().lines().next()?.ok()?.parse().ok()?;
-    Some(number)
-}
-
-fn get_input_char() -> Option<char> {
-    print!("?: ");
-    io::stdout().flush().expect("flush");
-    let stdin = io::stdin();
-    let chr: char = stdin.lock().lines().next()?.ok()?.parse().ok()?;
-    Some(chr)
+    let input: T = stdin.lock().lines().next()?.ok()?.parse().ok()?;
+    Some(input)
 }
 
 fn get_base_dirs() -> BaseDirs {
@@ -117,7 +112,7 @@ impl Activity {
             }
             println!("\t{}: {}", i, name);
         });
-        let input = get_input_char()?;
+        let input = get_input::<char>()?;
         let result = if input.is_numeric() {
             Some(&settings.activities[input.to_digit(10).unwrap() as usize])
         } else if input.is_alphabetic() {
@@ -148,7 +143,11 @@ impl Slot {
         let local = Local::now();
         let hour = local.hour();
         let minute = local.minute();
-        Slot((((hour * 2 + if minute > 30 { 1 } else { 0 }) as isize - *DAY_START as isize + DAY_SLOTS as isize) as usize) % DAY_SLOTS)
+        Slot::from_time(hour as usize, minute as usize)
+    }
+    
+    fn from_time(hour: usize, minute: usize) -> Slot {
+        Slot((((hour * 2 + if minute > 29 { 1 } else { 0 }) as isize - *DAY_START as isize + DAY_SLOTS as isize) as usize) % DAY_SLOTS)
     }
     
     /// Always return 12:00 for tests
@@ -167,6 +166,30 @@ impl Deref for Slot {
     
     fn deref(&self) -> &Self::Target {
         &self.0
+    }
+}
+
+impl TryFrom<String> for Slot {
+    type Error = Box<dyn std::error::Error>;
+    
+    fn try_from(text: String) -> Result<Self, Self::Error> {
+        let hrs: usize;
+        let min: usize;
+        if text == "now" || text == "n" || text.is_empty() {
+            return Ok(Slot::now())
+        }
+        if let Some((text_hrs, text_min)) = text.split_once(":") {
+            hrs = text_hrs.parse()?;
+            min = text_min.parse().unwrap_or(0);
+        } else {
+            hrs = text.parse()?;
+            min = 0;
+        }
+        if hrs > 23 || min > 59 {
+            Err(Box::new(io::Error::new(ErrorKind::InvalidInput, "out of range")))
+        } else {
+            Ok(Slot::from_time(hrs, min))
+        }
     }
 }
 
@@ -314,7 +337,7 @@ impl UI<'_> {
             for (i, s) in possible_slots.iter().enumerate() {
                 println!("{}: {}", i, Slot(*s));
             }
-            get_input()
+            get_input::<usize>()
         };
         if let Some(choice) = choice {
             self.ask_about_activity(now_or_last_entry, Slot(possible_slots[choice]));
@@ -401,11 +424,32 @@ fn main() {
                 println!("\ttoday (t): Print statistics for today.");
                 println!("\tday (d): Print statistics for certain day.");
                 println!("\tweek (w): Print statistics for last seven days.");
+                println!("\tyear (y): Print statistics for last year.");
                 println!("\tsplit (s): Split the time since the last recorded activity in two.");
                 println!("\tedit (e): Edit activities for today in text editor.");
+                println!("\tactivity (a): Enter an activity for a specific time span.");
                 println!();
                 println!("Current data file: {:?}", &file);
                 println!("Config file: {:?}", &settings_file);
+            },
+            "a" | "activity" => {
+                ui.print_current_slot_info();
+                println!("(Enter 'now' or a time like '18:00' or just '18'. Leave empty for 'now'.)");
+                println!("Start time:");
+                let start = get_input::<String>().and_then(|s| Slot::try_from(s).ok());
+                if let Some(start) = start {
+                    println!("~> {}", start);
+                    println!("End time:");
+                    let end = get_input::<String>().and_then(|s| Slot::try_from(s).ok());
+                    if let Some(end) = end {
+                        println!("~> {}", end);
+                        ui.ask_about_activity(start, end);
+                    } else {
+                        println!("Invalid input.");
+                    }
+                } else {
+                    println!("Invalid input.");
+                }
             },
             "d" | "day" => {
                 let time = Local::now() - Duration::hours((*DAY_START / 2) as i64);
@@ -413,11 +457,11 @@ fn main() {
                 let default_month = time.month() as usize;
                 let default_day = time.day() as usize;
                 print!("Year [{}] ", default_year);
-                let year = get_input().unwrap_or(default_year);
+                let year = get_input::<usize>().unwrap_or(default_year);
                 print!("Month [{}] ", default_month);
-                let month = get_input().unwrap_or(default_month);
+                let month = get_input::<usize>().unwrap_or(default_month);
                 print!("Day [{}] ", default_day);
-                let day = get_input().unwrap_or(default_day);
+                let day = get_input::<usize>().unwrap_or(default_day);
                 let file = PathBuf::from(settings.get_filename_by_date(year, month, day));
                 println!("Loading file {:?}", file);
                 let day: Day = serde_json::from_str(fs::read_to_string(file).expect("could not read file").as_str()).unwrap();
@@ -479,6 +523,51 @@ mod tests {
         assert_eq!(format!("{}", slot), "03:30");
         let slot = Slot::now();
         assert_eq!(format!("{}", slot), "12:00");
+    }
+    
+    #[test]
+    pub fn test_slot_from_string() {
+        let slots = vec![
+            Slot::try_from("18:00".to_string()),
+            Slot::try_from("18:".to_string()),
+            Slot::try_from("18".to_string()),
+            Slot::try_from("18:3".to_string()),
+            Slot::try_from("18:03".to_string()),
+            Slot::try_from("18:30".to_string()),
+            Slot::try_from("18:59".to_string()),
+            Slot::try_from(":".to_string()),
+            Slot::try_from("".to_string()),
+            Slot::try_from("500:".to_string()),
+            Slot::try_from(":30".to_string()),
+            Slot::try_from("now".to_string()),
+            Slot::try_from("n".to_string()),
+            Slot::try_from("n:".to_string()),
+        ];
+        assert!(slots[0].is_ok());
+        assert_eq!(*slots[0].as_ref().unwrap(), Slot(18 * 2 - *DAY_START));
+        assert!(slots[1].is_ok());
+        assert_eq!(*slots[1].as_ref().unwrap(), Slot(18 * 2 - *DAY_START));
+        assert!(slots[2].is_ok());
+        assert_eq!(*slots[2].as_ref().unwrap(), Slot(18 * 2 - *DAY_START));
+        assert!(slots[3].is_ok());
+        assert_eq!(*slots[3].as_ref().unwrap(), Slot(18 * 2 - *DAY_START));
+        assert!(slots[4].is_ok());
+        assert_eq!(*slots[4].as_ref().unwrap(), Slot(18 * 2 - *DAY_START));
+        assert!(slots[5].is_ok());
+        assert_eq!(*slots[5].as_ref().unwrap(), Slot(18 * 2 + 1 - *DAY_START));
+        assert!(slots[6].is_ok());
+        assert_eq!(*slots[6].as_ref().unwrap(), Slot(18 * 2 + 1 - *DAY_START));
+        assert!(slots[7].is_err());
+        assert!(slots[8].is_ok());
+        assert_eq!(*slots[8].as_ref().unwrap(), Slot::now());
+        assert!(slots[9].is_err());
+        assert!(slots[10].is_err());
+        assert!(slots[11].is_ok());
+        assert_eq!(*slots[11].as_ref().unwrap(), Slot::now());
+        assert!(slots[12].is_ok());
+        assert_eq!(*slots[12].as_ref().unwrap(), Slot::now());
+        assert!(slots[11].is_ok());
+        assert!(slots[13].is_err());
     }
     
     #[test]
