@@ -434,16 +434,21 @@ fn main() {
             },
             "a" | "activity" => {
                 ui.print_current_slot_info();
-                println!("(Enter 'now' or a time like '18:00' or just '18'. Leave empty for 'now'.)");
+                println!("(Enter '{}' or a time like '{}' or just '{}'. Leave {} for 'now'.)",
+                         "now".bright_blue(), "18:10".bright_blue(), "18".bright_blue(), "empty".bright_blue());
                 println!("Start time:");
                 let start = get_input::<String>().and_then(|s| Slot::try_from(s).ok());
                 if let Some(start) = start {
-                    println!("~> {}", start);
+                    println!("~> {}", start.to_string().bold());
                     println!("End time:");
                     let end = get_input::<String>().and_then(|s| Slot::try_from(s).ok());
                     if let Some(end) = end {
-                        println!("~> {}", end);
-                        ui.ask_about_activity(start, end);
+                        println!("~> {}", end.to_string().bold());
+                        if *end <= *start {
+                            println!("{}", "End time <= start time!".red());
+                        } else {
+                            ui.ask_about_activity(start, end);
+                        }
                     } else {
                         println!("Invalid input.");
                     }
