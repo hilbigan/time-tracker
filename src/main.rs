@@ -67,6 +67,11 @@ impl Default for Settings {
 }
 
 impl Settings {
+    fn get_shortcut(&self, activity: &Activity) -> Option<char> {
+        let index = self.activities.iter().position(|a| a == activity)?;
+        self.get_shortcuts()[index]
+    }
+    
     fn get_shortcuts(&self) -> Vec<Option<char>> {
         if self.shortcuts.borrow().is_none() {
             let mut shortcuts = Vec::with_capacity(self.activities.len());
@@ -125,12 +130,17 @@ impl Activity {
         }
         result
     }
+    
+    fn color(&self) -> &'static str {
+        // maybe cache this...
+        let color_idx = self.name.chars().map(|c| c as usize).sum::<usize>() % COLORS.len();
+        &COLORS[color_idx]
+    }
 }
 
 impl Display for Activity {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        let color_idx = self.name.chars().map(|c| c as usize).sum::<usize>() % COLORS.len();
-        f.write_str(&*format!("{}", self.name.color(COLORS[color_idx])))?;
+        f.write_str(&*format!("{}", self.name.color(self.color())))?;
         Ok(())
     }
 }
@@ -146,14 +156,14 @@ impl Slot {
         Slot::from_time(hour as usize, minute as usize)
     }
     
-    fn from_time(hour: usize, minute: usize) -> Slot {
-        Slot((((hour * 2 + if minute > 29 { 1 } else { 0 }) as isize - *DAY_START as isize + DAY_SLOTS as isize) as usize) % DAY_SLOTS)
-    }
-    
     /// Always return 12:00 for tests
     #[cfg(test)]
     fn now() -> Slot {
         Slot(16)
+    }
+    
+    fn from_time(hour: usize, minute: usize) -> Slot {
+        Slot((((hour * 2 + if minute > 29 { 1 } else { 0 }) as isize - *DAY_START as isize + DAY_SLOTS as isize) as usize) % DAY_SLOTS)
     }
     
     fn next(&self) -> Slot {
@@ -246,6 +256,15 @@ impl Day {
     
     pub fn score(&self) -> f32 {
         self.hours_productive() as f32 / 12.
+    }
+    
+    pub fn activity_string(&self, settings: &Settings) -> String {
+        self.time_slots.iter()
+            .map(|s| s.as_ref()
+                .and_then(|a| settings.get_shortcut(&a)
+                    .map(|s| s.to_string().color(a.color()).to_string()))
+                .unwrap_or(" ".into()))
+            .join("")
     }
     
     fn print_stats(&self, with_current_time: bool, trim_start: bool) {
@@ -350,13 +369,28 @@ impl UI<'_> {
     /// files do not exist.
     fn multiday_statistics(&self, dates: impl Iterator<Item = DateTime<Local>>, print_days: bool) {
         let mut days = Vec::new();
+        if print_days {
+            println!("{}{}", " ".repeat(36),
+                     (0..24).into_iter()
+                         .step_by(2)
+                         .map(|h| format!("{:<2}", (h + *DAY_START / 2) % 24))
+                         .join("  "));
+            println!("{}{}", " ".repeat(36), "| ".repeat(24))
+        }
         for date in dates {
             let time = date.borrow();
             let file = PathBuf::from(self.settings.get_filename_by_date(time.year() as usize, time.month() as usize, time.day() as usize));
             if file.exists() {
                 let day: Day = serde_json::from_str(fs::read_to_string(file).expect("could not read file").as_str()).unwrap();
                 if print_days {
-                    println!("{}, {:02}.{:02}.: {:4.1} hrs., Score: {:0.2}", time.weekday().to_string(), time.day(), time.month(), day.hours_productive(), day.score());
+                    println!("{}, {:02}.{:02}.: {:4.1} hrs., Score: {:0.2} {}",
+                             time.weekday().to_string(),
+                             time.day(),
+                             time.month(),
+                             day.hours_productive(),
+                             day.score(),
+                             day.activity_string(&self.settings)
+                    );
                 }
                 days.push(day);
             } else if print_days {
@@ -479,9 +513,12 @@ fn main() {
             "w" | "week" => {
                 ui.multiday_statistics((0..7).rev().map(|i| Local::now() - Duration::days(i)), true);
             },
+            "2w" | "2week" => {
+                ui.multiday_statistics((0..14).rev().map(|i| Local::now() - Duration::days(i)), true);
+            },
             "y" | "year" => {
                 ui.multiday_statistics((0..365).rev().map(|i| Local::now() - Duration::days(i)), false);
-            }
+            },
             "e" | "edit" => {
                 ui.print_current_slot_info();
                 ui.edit_with_text_editor();
