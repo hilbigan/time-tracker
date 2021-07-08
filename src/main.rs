@@ -18,8 +18,6 @@ use std::borrow::Borrow;
 use itertools::Itertools;
 use std::convert::{TryFrom};
 
-#[feature(split_once)]
-
 pub const CONFIG_FILENAME: &str = "ttrc.toml";
 pub const DAY_SLOTS: usize = 48;
 pub const DAY_START: Slot = Slot(8);
@@ -263,7 +261,7 @@ impl Day {
             .map(|s| s.as_ref()
                 .and_then(|a| settings.get_shortcut(&a)
                     .map(|s| s.to_string().color(a.color()).to_string()))
-                .unwrap_or(" ".into()))
+                .unwrap_or_else(|| " ".into()))
             .join("")
     }
     
@@ -540,6 +538,7 @@ fn main() {
 }
 
 mod tests {
+    #[cfg(test)]
     use super::*;
     
     #[test]
