@@ -1,0 +1,9 @@
+format_strings = true
+match_block_trailing_comma = true
+imports_granularity = "Module"
+overflow_delimited_expr = true
+reorder_impl_items = true
+reorder_imports = true
+report_fixme = "Always"
+use_field_init_shorthand = true
+wrap_comments = true
