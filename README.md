@@ -8,15 +8,15 @@ productivity.
 
 - configurable activities
 - comprehensive statistics
-- concise and extremely
+- concise and extremely efficient UI, according to me
 
 ## Screenshots
 
-![UI](./screenshots/screenshot-0.png)
-
-![Statistics](./screenshots/screenshot-1.png)
-
-![UI](./screenshots/screenshot-2.png)
+<div style="text-align:center">
+<img src="./screenshots/screenshot-0.png" alt="UI">
+<img src="./screenshots/screenshot-1.png" alt="Statistics">
+<img src="./screenshots/screenshot-2.png" alt="UI">
+</div>
 
 ## Usage
 
