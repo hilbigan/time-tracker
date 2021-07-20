@@ -1,6 +1,6 @@
 # Time-Tracker
 
-Small time-tracking / productivity for myself by myself.
+Small time-tracking / productivity tool for myself by myself.
 Records activities in 30min slots and reports on
 productivity.
 
