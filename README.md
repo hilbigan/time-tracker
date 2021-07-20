@@ -36,3 +36,17 @@ Commands:
 Current data file: "/home/aaron/.local/share/2021-7-20.json"
 Config file: "/home/aaron/.config/ttrc.toml"
 ```
+
+## Build
+
+Build
+
+```
+cargo build --release
+```
+
+Test
+
+```
+cargo test
+```
