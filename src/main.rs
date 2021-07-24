@@ -314,9 +314,10 @@ impl Day {
             }
         });
         println!(
-            "Hours Productive: {}, Score: {:0.2}",
+            "Hours Productive: {}, Score: {:0.2} (time adjusted: {:0.2})",
             self.hours_productive(),
-            self.score()
+            self.score(),
+            self.score() * (DAY_SLOTS as f32 / *Slot::now() as f32)
         );
     }
 
