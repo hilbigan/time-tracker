@@ -663,7 +663,8 @@ fn main() {
                 ui.print_current_slot_info();
                 ui.split();
             },
-            _ => {
+            arg => {
+                println!("{}{}", "Unknown command: ".red(), arg);
                 ui.print_current_slot_info();
                 ui.ask_about_activity_now()
             },
