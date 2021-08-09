@@ -19,6 +19,7 @@ use std::{fmt, fs, io};
 pub const CONFIG_FILENAME: &str = "ttrc.toml";
 pub const DAY_SLOTS: usize = 48;
 pub const DAY_START: Slot = Slot(8);
+pub const PRODUCTIVE_TARGET: f32 = 12.;
 pub const COLORS: [&str; 7] = ["red", "green", "yellow", "blue", "magenta", "cyan", "white"];
 
 fn get_input<T>() -> Option<T>
@@ -277,7 +278,7 @@ impl Day {
     }
 
     pub fn score(&self) -> f32 {
-        self.hours_productive() as f32 / 12.
+        self.hours_productive() as f32 / PRODUCTIVE_TARGET
     }
 
     pub fn activity_string(&self, settings: &Settings) -> String {
@@ -501,7 +502,7 @@ impl UI<'_> {
                 )
             })
             .collect();
-        let score = hours as f32 / (days.len() as f32 * 12.);
+        let score = hours as f32 / (days.len() as f32 * PRODUCTIVE_TARGET);
 
         println!("Aggregated statistics from the last {} days:", days.len());
         println!("Hours Productive: {}, Score: {:0.2}", hours, score);
@@ -663,6 +664,47 @@ fn main() {
                 ui.print_current_slot_info();
                 ui.split();
             },
+            "json" => {
+                let day_maps = (0..365).rev()
+                    .map(|i| Local::now() - Duration::days(i))
+                    .filter_map(|time| {
+                        let file = PathBuf::from(settings.get_filename_by_date(
+                            time.year() as usize,
+                            time.month() as usize,
+                            time.day() as usize,
+                        ));
+                        if file.exists() {
+                            Some(serde_json::from_str(
+                                fs::read_to_string(file)
+                                    .expect("read file")
+                                    .as_str()
+                            ).expect("deserialize"))
+                        } else {
+                            None
+                        }
+                    })
+                    .map(|d: Day| {
+                        d.time_slots.iter()
+                            .fold(HashMap::default(), |mut map: HashMap<Activity, usize>, slot| {
+                                if let Some(activity) = slot {
+                                    *map.entry(activity.clone())
+                                        .or_insert(0) += 1;
+                                }
+                                map
+                            })
+                    })
+                    .collect_vec();
+                println!("{{");
+                for activity in &settings.activities {
+                    print!("\t\"{}\": [\n\t\t", activity.name);
+                    for day in day_maps.iter() {
+                        let &half_hours = day.get(activity).unwrap_or(&0);
+                        print!("{}, ", half_hours as f32 / 2.);
+                    }
+                    println!("\n\t],");
+                }
+                println!("}}");
+            }
             arg => {
                 println!("{}{}", "Unknown command: ".red(), arg);
                 ui.print_current_slot_info();
