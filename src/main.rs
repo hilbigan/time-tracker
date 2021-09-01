@@ -122,7 +122,10 @@ impl Activity {
         });
         let input = get_input::<char>()?;
         let result = if input.is_numeric() {
-            Some(&settings.activities[input.to_digit(10).unwrap() as usize])
+            input.to_digit(10)
+                .map(|number| number as usize)
+                .filter(|number| *number < settings.activities.len())
+                .map(|number| &settings.activities[number])
         } else if input.is_alphabetic() {
             shortcuts
                 .iter()
