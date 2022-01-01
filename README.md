@@ -10,6 +10,10 @@ productivity.
 - comprehensive statistics
 - concise and extremely efficient UI, according to me
 
+## Download
+
+https://github.com/hilbigan/time-tracker/releases
+
 ## Screenshots
 
 <div style="text-align:center">
