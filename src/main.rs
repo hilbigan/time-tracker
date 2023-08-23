@@ -17,9 +17,11 @@ use std::str::FromStr;
 use std::{fmt, fs, io};
 
 pub const CONFIG_FILENAME: &str = "ttrc.toml";
-pub const DAY_SLOTS: usize = 48;
-pub const DAY_START: Slot = Slot(8);
-pub const PRODUCTIVE_TARGET: f32 = 12.;
+pub const SLOTS_PER_HOUR: usize = 2;
+pub const DAY_SLOTS: usize = 24 * SLOTS_PER_HOUR;
+pub const DAY_START: Slot = Slot(4 * SLOTS_PER_HOUR);
+pub const DAY_CHART_STEP_SIZE: usize = 1;
+pub const PRODUCTIVE_TARGET: f32 = 8.;
 pub const COLORS: [&str; 7] = ["red", "green", "yellow", "blue", "magenta", "cyan", "white"];
 
 fn get_input<T>() -> Option<T>
@@ -83,7 +85,7 @@ impl Settings {
     }
 
     fn get_filename_today(&self) -> String {
-        let time = Local::now() - Duration::hours((*DAY_START / 2) as i64);
+        let time = Local::now() - Duration::hours((*DAY_START / SLOTS_PER_HOUR) as i64);
         self.get_filename_by_date(
             time.year() as usize,
             time.month() as usize,
@@ -172,8 +174,9 @@ impl Slot {
     }
 
     fn from_time(hour: usize, minute: usize) -> Slot {
+        let minutes_per_slot = 60 / SLOTS_PER_HOUR;
         Slot(
-            (((hour * 2 + if minute > 29 { 1 } else { 0 }) as isize - *DAY_START as isize
+            (((hour * SLOTS_PER_HOUR + minute / minutes_per_slot) as isize - *DAY_START as isize
                 + DAY_SLOTS as isize) as usize)
                 % DAY_SLOTS,
         )
@@ -222,9 +225,9 @@ impl TryFrom<String> for Slot {
 impl Display for Slot {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let shifted = (self.deref() + *DAY_START) % DAY_SLOTS;
-        let hour = shifted / 2;
-        let half = (shifted % 2) * 30;
-        f.write_str(&*format!("{:02}:{:02}", hour, half))?;
+        let hour = shifted / SLOTS_PER_HOUR;
+        let minutes = (shifted % SLOTS_PER_HOUR) * (60 / SLOTS_PER_HOUR);
+        f.write_str(&*format!("{:02}:{:02}", hour, minutes))?;
         Ok(())
     }
 }
@@ -277,16 +280,17 @@ impl Day {
             .filter_map(|it| it.as_ref())
             .filter(|it| it.productive)
             .count() as f32
-            / 2.
+            / SLOTS_PER_HOUR as f32
     }
 
     pub fn score(&self) -> f32 {
         self.hours_productive() as f32 / PRODUCTIVE_TARGET
     }
 
-    pub fn activity_string(&self, settings: &Settings) -> String {
+    pub fn activity_string(&self, settings: &Settings, step_by: usize) -> String {
         self.time_slots
             .iter()
+            .step_by(step_by)
             .map(|s| {
                 s.as_ref()
                     .and_then(|a| {
@@ -435,17 +439,18 @@ impl UI<'_> {
     /// corresponding data files do not exist.
     fn multiday_statistics(&self, dates: impl Iterator<Item = DateTime<Local>>, print_days: bool) {
         let mut days = Vec::new();
+        let step_by = DAY_CHART_STEP_SIZE;
         if print_days {
             println!(
                 "{}{}",
                 " ".repeat(36),
                 (0..24)
                     .into_iter()
-                    .step_by(2)
-                    .map(|h| format!("{:<2}", (h + *DAY_START / 2) % 24))
+                    .step_by(step_by)
+                    .map(|h| format!("{:<2}", (h + *DAY_START / SLOTS_PER_HOUR) % 24))
                     .join("  ")
             );
-            println!("{}{}", " ".repeat(36), "| ".repeat(24))
+            println!("{}{}", " ".repeat(36), "| ".repeat(24 * SLOTS_PER_HOUR / step_by))
         }
         for date in dates {
             let time = date.borrow();
@@ -469,7 +474,7 @@ impl UI<'_> {
                         time.month(),
                         day.hours_productive(),
                         day.score(),
-                        day.activity_string(&self.settings)
+                        day.activity_string(&self.settings, step_by)
                     );
                 }
                 days.push(day);
@@ -499,7 +504,7 @@ impl UI<'_> {
                                         && activity_at_time.as_ref().unwrap() == activity
                                 })
                                 .count() as f32
-                                / 2.
+                                / SLOTS_PER_HOUR as f32
                         })
                         .sum(),
                 )
@@ -567,6 +572,7 @@ fn main() {
         println!("Using new file {:?}", file);
         Day::default()
     };
+    assert_eq!(day.time_slots.len(), DAY_SLOTS, "Loaded day file {} is invalid.", file.display());
     let mut ui = UI {
         day,
         file: file.clone(),
@@ -617,7 +623,7 @@ fn main() {
                 }
             },
             "d" | "day" => {
-                let time = Local::now() - Duration::hours((*DAY_START / 2) as i64);
+                let time = Local::now() - Duration::hours((*DAY_START / SLOTS_PER_HOUR) as i64);
                 let default_year = time.year() as usize;
                 let default_month = time.month() as usize;
                 let default_day = time.day() as usize;
@@ -702,7 +708,7 @@ fn main() {
                     print!("\t\"{}\": [\n\t\t", activity.name);
                     for day in day_maps.iter() {
                         let &half_hours = day.get(activity).unwrap_or(&0);
-                        print!("{}, ", half_hours as f32 / 2.);
+                        print!("{}, ", half_hours as f32 / SLOTS_PER_HOUR as f32);
                     }
                     println!("\n\t],");
                 }
