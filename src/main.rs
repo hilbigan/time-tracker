@@ -122,7 +122,7 @@ impl Activity {
             }
             println!("\t{}: {}", i, name);
         });
-        let input = get_input::<char>()?;
+        let input = get_input::<String>()?.trim().chars().next()?;
         let result = if input.is_numeric() {
             input.to_digit(10)
                 .map(|number| number as usize)
@@ -367,6 +367,8 @@ impl UI<'_> {
             for s in *start..*end {
                 self.day.time_slots[s] = Some(act.clone());
             }
+        } else {
+            println!("I didn't get that.");
         }
     }
 
