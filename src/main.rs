@@ -516,6 +516,13 @@ impl UI<'_> {
 
         println!("Aggregated statistics from the last {} days:", days.len());
         println!("Hours Productive: {}, Score: {:0.2}", hours, score);
+        println!(
+            "Target: {} x {} = {} hours; Difference: {:+} hours",
+            PRODUCTIVE_TARGET,
+            days.len(),
+            PRODUCTIVE_TARGET * days.len() as f32,
+            hours - (PRODUCTIVE_TARGET * days.len() as f32)
+        );
         hours_by_activity
             .iter()
             .sorted_unstable_by_key(|(_, hours)| (**hours * -2.) as isize)
