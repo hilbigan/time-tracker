@@ -17,7 +17,7 @@ use std::str::FromStr;
 use std::{fmt, fs, io};
 
 pub const CONFIG_FILENAME: &str = "ttrc.toml";
-pub const SLOTS_PER_HOUR: usize = 2;
+pub const SLOTS_PER_HOUR: usize = 4;
 pub const DAY_SLOTS: usize = 24 * SLOTS_PER_HOUR;
 pub const DAY_START: Slot = Slot(4 * SLOTS_PER_HOUR);
 pub const DAY_CHART_STEP_SIZE: usize = 1;
@@ -106,6 +106,8 @@ impl Settings {
 struct Activity {
     name: String,
     productive: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    comment: Option<String>
 }
 
 impl Activity {
@@ -152,6 +154,9 @@ impl Activity {
 impl Display for Activity {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.write_str(&*format!("{}", self.name.color(self.color())))?;
+        if let Some(comment) = &self.comment {
+            f.write_str(&*format!(" - {}", comment))?;
+        }
         Ok(())
     }
 }
@@ -362,10 +367,49 @@ impl UI<'_> {
             start.to_string().yellow(),
             end.to_string().yellow()
         );
+
         let act = Activity::prompt(&self.settings);
         if let Some(act) = act {
             for s in *start..*end {
                 self.day.time_slots[s] = Some(act.clone());
+            }
+
+            let today = Local::now();
+            let lines = fs::read_dir("/Users/hilbiga/git").expect("read dir")
+                .filter_map(|entry| entry.ok())
+                .filter(|entry| entry.file_type().expect("file type").is_dir())
+                .map(|entry| entry.path())
+                .map(|repo| {
+                    let repo_name = repo.file_name().unwrap().to_str().unwrap().clone();
+                    let log = Command::new("/usr/bin/git")
+                        .arg("log")
+                        .arg("--oneline")
+                        .arg("--after")
+                        .arg(format!("{}-{:02}-{:02} {}", today.year(), today.month(), today.day(), start.to_string()))
+                        .arg("--before")
+                        .arg(format!("{}-{:02}-{:02} {}", today.year(), today.month(), today.day(), end.to_string()))
+                        .current_dir(&repo)
+                        .output()
+                        .expect("failed to run git");
+                    String::from_utf8_lossy(&log.stdout)
+                        .lines()
+                        .map(|line| format!("{} - {}", repo_name, line))
+                        .collect::<Vec<String>>()
+                })
+                .flatten()
+                .collect::<Vec<String>>();
+            if !lines.is_empty() {
+                println!("Include as comment: ");
+                for (i, line) in lines.iter().enumerate() {
+                    println!("{}: {}", i+1, line.color(Color::Yellow));
+                }
+                if let Some(index) = get_input::<usize>() {
+                    if index > 0 && index-1 < lines.len() {
+                        self.day.time_slots[*start].as_mut().unwrap().comment = Some(lines[index-1].clone());
+                    } else {
+                        println!("No comment included.");
+                    }
+                }
             }
         } else {
             println!("I didn't get that.");
@@ -452,7 +496,7 @@ impl UI<'_> {
                     .map(|h| format!("{:<2}", (h + *DAY_START / SLOTS_PER_HOUR) % 24))
                     .join("  ")
             );
-            println!("{}{}", " ".repeat(36), "| ".repeat(24 * SLOTS_PER_HOUR / step_by))
+            println!("{}{}", " ".repeat(36), "| ".repeat(24 * (SLOTS_PER_HOUR / step_by / 2)))
         }
         for date in dates {
             let time = date.borrow();
@@ -551,10 +595,12 @@ fn main() {
         settings.activities.push(Activity {
             name: "Example".to_string(),
             productive: false,
+            comment: None,
         });
         settings.activities.push(Activity {
             name: "Second Example".to_string(),
             productive: true,
+            comment: None,
         });
         let settings_str = toml::to_string(&settings).expect("seriaize");
         fs::write(&settings_file, settings_str).expect("write");
