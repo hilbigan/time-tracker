@@ -44,7 +44,9 @@ type Shortcuts = Vec<Option<char>>;
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct Settings {
     editor: String,
+    git: String,
     data_dir: PathBuf,
+    git_repos_dir: PathBuf,
     activities: Vec<Activity>,
     #[serde(skip)]
     shortcuts: RefCell<Option<Shortcuts>>,
@@ -54,6 +56,8 @@ impl Default for Settings {
     fn default() -> Self {
         Settings {
             editor: "vim".to_string(),
+            git: "/usr/bin/git".to_string(),
+            git_repos_dir: PathBuf::from("/Users/hilbiga/git"),
             data_dir: get_base_dirs().data_dir().into(),
             activities: vec![],
             shortcuts: RefCell::new(None),
@@ -148,7 +152,7 @@ impl Activity {
 
     fn color(&self) -> &'static str {
         // maybe cache this...
-        let color_idx = self.name.chars().map(|c| c as usize).sum::<usize>() % COLORS.len();
+        let color_idx = (self.name.chars().map(|c| c as usize).sum::<usize>() + self.name.len()) % COLORS.len();
         &COLORS[color_idx]
     }
 }
@@ -385,6 +389,33 @@ impl UI<'_> {
         );
     }
 
+    fn get_git_commits(&self, start: Slot, end: Slot) -> Vec<String> {
+        let today = Local::now();
+        fs::read_dir(&self.settings.git_repos_dir).expect("read dir")
+            .filter_map(|entry| entry.ok())
+            .filter(|entry| entry.file_type().expect("file type").is_dir())
+            .map(|entry| entry.path())
+            .map(|repo| {
+                let repo_name = repo.file_name().unwrap().to_str().unwrap().clone();
+                let log = Command::new(&self.settings.git)
+                    .arg("log")
+                    .arg("--oneline")
+                    .arg("--after")
+                    .arg(format!("{}-{:02}-{:02} {}", today.year(), today.month(), today.day(), start.to_string()))
+                    .arg("--before")
+                    .arg(format!("{}-{:02}-{:02} {}", today.year(), today.month(), today.day(), end.to_string()))
+                    .current_dir(&repo)
+                    .output()
+                    .expect("failed to run git");
+                String::from_utf8_lossy(&log.stdout)
+                    .lines()
+                    .map(|line| format!("{} - {}", repo_name, line))
+                    .collect::<Vec<String>>()
+            })
+            .flatten()
+            .collect::<Vec<String>>()
+    }
+
     fn ask_about_activity(&mut self, start: Slot, end: Slot) {
         println!(
             "What did you do from {} - {}?",
@@ -398,30 +429,7 @@ impl UI<'_> {
                 self.day.time_slots[s] = Some(act.clone());
             }
 
-            let today = Local::now();
-            let lines = fs::read_dir("/Users/hilbiga/git").expect("read dir")
-                .filter_map(|entry| entry.ok())
-                .filter(|entry| entry.file_type().expect("file type").is_dir())
-                .map(|entry| entry.path())
-                .map(|repo| {
-                    let repo_name = repo.file_name().unwrap().to_str().unwrap().clone();
-                    let log = Command::new("/usr/bin/git")
-                        .arg("log")
-                        .arg("--oneline")
-                        .arg("--after")
-                        .arg(format!("{}-{:02}-{:02} {}", today.year(), today.month(), today.day(), start.to_string()))
-                        .arg("--before")
-                        .arg(format!("{}-{:02}-{:02} {}", today.year(), today.month(), today.day(), end.to_string()))
-                        .current_dir(&repo)
-                        .output()
-                        .expect("failed to run git");
-                    String::from_utf8_lossy(&log.stdout)
-                        .lines()
-                        .map(|line| format!("{} - {}", repo_name, line))
-                        .collect::<Vec<String>>()
-                })
-                .flatten()
-                .collect::<Vec<String>>();
+            let lines = self.get_git_commits(start, end);
             if !lines.is_empty() {
                 println!("Include as comment: ");
                 for (i, line) in lines.iter().enumerate() {
