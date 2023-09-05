@@ -36,7 +36,7 @@ where
 }
 
 fn get_base_dirs() -> BaseDirs {
-    directories::BaseDirs::new().expect("base_dirs")
+    BaseDirs::new().expect("base_dirs")
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
