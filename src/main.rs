@@ -262,11 +262,33 @@ impl Day {
             .map(|(s, o)| (Slot(s), o.as_ref().unwrap()))
     }
 
-    pub fn slots(&self) -> impl Iterator<Item = (Slot, &Option<Activity>)> {
+    pub fn slots(&self) -> impl Iterator<Item = (Slot, Slot, &Option<Activity>)> {
         self.time_slots
             .iter()
             .enumerate()
-            .map(|(s, o)| (Slot(s), o))
+            .map(|(s, o)| (Slot(s), Slot(s).next(), o))
+    }
+
+    pub fn slots_collapsed<'a>(&'a self) -> impl Iterator<Item = (Slot, Slot, Option<Activity>)> + 'a {
+        self.time_slots
+            .iter()
+            .cloned()
+            .enumerate()
+            .scan(None, |state: &mut Option<(usize, Option<Activity>)>, (i, o)| {
+                if let Some((start, act)) = state {
+                    if *act != o {
+                        let result = Some(Some((Slot(*start), Slot(i), act.clone())));
+                        *state = Some((i, o));
+                        result
+                    } else {
+                        Some(None)
+                    }
+                } else {
+                    *state = Some((i, o));
+                    Some(None)
+                }
+            })
+            .filter_map(|o| o)
     }
 
     pub fn first_non_empty(&self) -> Option<Slot> {
@@ -312,14 +334,14 @@ impl Day {
 
     fn print_stats(&self, with_current_time: bool, trim_start: bool) {
         let first_non_empty = self.first_non_empty();
-        self.slots().for_each(|(s, o)| {
+        self.slots_collapsed().for_each(|(s, e, o)| {
             if (!with_current_time || *s <= *Slot::now())
                 && (!trim_start || first_non_empty.is_none() || *s >= *first_non_empty.unwrap())
             {
                 println!(
                     "{}-{} - {}",
                     s,
-                    s.next(),
+                    e,
                     if let Some(act) = o {
                         act.to_string()
                     } else {
@@ -428,12 +450,12 @@ impl UI<'_> {
     fn edit_with_text_editor(&mut self) {
         let tmp_file = PathBuf::from_str("/tmp/time-track.tmp").unwrap();
         let mut data = String::new();
-        self.day.slots().for_each(|(s, o)| {
+        self.day.slots().for_each(|(s, e, o)| {
             writeln!(
                 &mut data,
                 "{}-{} - {}",
                 s,
-                s.next(),
+                e,
                 if let Some(act) = o {
                     act.name.as_ref()
                 } else {
