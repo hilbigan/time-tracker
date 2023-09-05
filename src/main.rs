@@ -730,6 +730,18 @@ fn main() {
                 .unwrap();
                 day.print_stats(false, true);
             },
+            "yd" | "yesterday" => {
+                let time = Local::now() - Duration::hours((*DAY_START / SLOTS_PER_HOUR) as i64) - Duration::days(1);
+                let file = PathBuf::from(settings.get_filename_by_date(time.year() as usize, time.month() as usize, time.day() as usize));
+                println!("Loading file {:?}", file);
+                let day: Day = serde_json::from_str(
+                    fs::read_to_string(file)
+                        .expect("could not read file")
+                        .as_str(),
+                )
+                    .unwrap();
+                day.print_stats(false, true);
+            },
             "t" | "today" => {
                 ui.print_current_slot_info();
                 ui.day.print_stats(true, true);
