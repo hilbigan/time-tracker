@@ -39,13 +39,15 @@ fn get_base_dirs() -> BaseDirs {
     BaseDirs::new().expect("base_dirs")
 }
 
+type Shortcuts = Vec<Option<char>>;
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct Settings {
     editor: String,
     data_dir: PathBuf,
     activities: Vec<Activity>,
     #[serde(skip)]
-    shortcuts: RefCell<Option<Vec<Option<char>>>>,
+    shortcuts: RefCell<Option<Shortcuts>>,
 }
 
 impl Default for Settings {
@@ -65,7 +67,7 @@ impl Settings {
         self.get_shortcuts()[index]
     }
 
-    fn get_shortcuts(&self) -> Vec<Option<char>> {
+    fn get_shortcuts(&self) -> Shortcuts {
         if self.shortcuts.borrow().is_none() {
             let mut shortcuts = Vec::with_capacity(self.activities.len());
             for activity in &self.activities {
