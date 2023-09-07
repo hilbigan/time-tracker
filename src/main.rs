@@ -456,6 +456,7 @@ impl UI<'_> {
     }
 
     fn edit_with_text_editor(&mut self) {
+        unimplemented!("Needs fixing!");
         let tmp_file = PathBuf::from_str("/tmp/time-track.tmp").unwrap();
         let mut data = String::new();
         self.day.slots().for_each(|(s, e, o)| {
@@ -488,7 +489,7 @@ impl UI<'_> {
         }
     }
 
-    fn split(&mut self) {
+    fn split(&mut self, only_one_split: bool) {
         let now_or_last_entry = self.day.now_or_last_entry();
         let possible_slots = (*now_or_last_entry + 1..*Slot::now() + 1)
             .into_iter()
@@ -508,8 +509,10 @@ impl UI<'_> {
         };
         if let Some(choice) = choice {
             self.ask_about_activity(now_or_last_entry, Slot(possible_slots[choice]));
-            self.day.write(self.file.as_path());
-            self.ask_about_activity(Slot(possible_slots[choice]), Slot::now().next());
+            if !only_one_split {
+                self.save();
+                self.ask_about_activity(Slot(possible_slots[choice]), Slot::now().next());
+            }
         }
     }
 
@@ -670,10 +673,12 @@ fn main() {
             "h" | "help" => {
                 println!("Commands:");
                 println!("\ttoday (t): Print statistics for today.");
-                println!("\tday (d): Print statistics for certain day.");
-                println!("\tweek (w): Print statistics for last seven days.");
+                println!("\tday (d): Print statistics for a specific day.");
+                println!("\tyesterday (yd): Print statistics for yesterday.");
+                println!("\tweek (w, 2w, 3w): Print statistics for last seven, 14, 21 days.");
                 println!("\tyear (y): Print statistics for last year.");
                 println!("\tsplit (s): Split the time since the last recorded activity in two.");
+                println!("\tuntil (u): Like split, but only enter the first activity.");
                 println!("\tedit (e): Edit activities for today in text editor.");
                 println!("\tactivity (a): Enter an activity for a specific time span.");
                 println!();
@@ -758,6 +763,12 @@ fn main() {
                     true,
                 );
             },
+            "3w" | "3week" => {
+                ui.multiday_statistics(
+                    (0..21).rev().map(|i| Local::now() - Duration::days(i)),
+                    true,
+                );
+            },
             "y" | "year" => {
                 ui.multiday_statistics(
                     (0..365).rev().map(|i| Local::now() - Duration::days(i)),
@@ -770,7 +781,11 @@ fn main() {
             },
             "s" | "split" => {
                 ui.print_current_slot_info();
-                ui.split();
+                ui.split(false);
+            },
+            "u" | "until" => {
+                ui.print_current_slot_info();
+                ui.split(true);
             },
             "json" => {
                 let day_maps = (0..365).rev()
