@@ -456,20 +456,27 @@ impl UI<'_> {
     }
 
     fn edit_with_text_editor(&mut self) {
-        unimplemented!("Needs fixing!");
         let tmp_file = PathBuf::from_str("/tmp/time-track.tmp").unwrap();
         let mut data = String::new();
+        writeln!(&mut data, "# Do not add or delete any lines in this document.");
+        writeln!(&mut data, "# Edit the activities and associated comments by changing the text.");
+        writeln!(&mut data, "# The time, activity name, and comment field (if any) must always be seperated by ' - '.");
         self.day.slots().for_each(|(s, e, o)| {
+            let mut name = "empty";
+            let mut comment = "".to_string();
+            if let Some(act) = o {
+                name = act.name.as_ref();
+                if let Some(c) = act.comment.as_ref() {
+                    comment = format!(" - {}", c.as_str());
+                }
+            }
             writeln!(
                 &mut data,
-                "{}-{} - {}",
+                "{}-{} - {}{}",
                 s,
                 e,
-                if let Some(act) = o {
-                    act.name.as_ref()
-                } else {
-                    "empty"
-                }
+                name,
+                comment
             )
             .expect("write");
         });
@@ -484,7 +491,16 @@ impl UI<'_> {
             let data = fs::read_to_string(tmp_file).expect("could not read file");
             self.day.time_slots = data
                 .lines()
-                .map(|o| Activity::get_by_name(&self.settings.activities, &o[14..]))
+                .filter(|o| !o.starts_with("#"))
+                .map(|o| {
+                    let mut splits = o.split(" - ");
+                    splits.next().expect("format");
+                    let mut activity = Activity::get_by_name(&self.settings.activities, splits.next().expect("format"));
+                    if let Some(act) = activity.as_mut() {
+                        act.comment = splits.next().map(|s| s.to_string());
+                    }
+                    activity
+                })
                 .collect();
         }
     }
@@ -681,10 +697,14 @@ fn main() {
                 println!("\tuntil (u): Like split, but only enter the first activity.");
                 println!("\tedit (e): Edit activities for today in text editor.");
                 println!("\tactivity (a): Enter an activity for a specific time span.");
+                println!("\tpath (p): Print today's data file path.");
                 println!();
                 println!("Current data file: {:?}", &file);
                 println!("Config file: {:?}", &settings_file);
             },
+            "p" | "path" => {
+                println!("{}", file.display());
+            }
             "a" | "activity" => {
                 ui.print_current_slot_info();
                 println!(
