@@ -419,7 +419,7 @@ impl UI<'_> {
                     .expect("failed to run git");
                 String::from_utf8_lossy(&log.stdout)
                     .lines()
-                    .map(|line| format!("{} - {}", repo_name, line))
+                    .map(|line| format!("{}: {}", repo_name, line))
                     .collect::<Vec<String>>()
             })
             .flatten()
