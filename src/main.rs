@@ -266,6 +266,15 @@ impl Day {
             .map(|(s, o)| (Slot(s), o.as_ref().unwrap()))
     }
 
+    pub fn entry_before_now_mut(&mut self) -> Option<(Slot, &mut Activity)> {
+        self.time_slots
+            .iter_mut()
+            .enumerate()
+            .rev()
+            .find(|(s, o)| o.is_some())
+            .map(|(s, o)| (Slot(s), o.as_mut().unwrap()))
+    }
+
     pub fn slots(&self) -> impl Iterator<Item = (Slot, Slot, &Option<Activity>)> {
         self.time_slots
             .iter()
@@ -376,6 +385,7 @@ struct UI<'d> {
 impl UI<'_> {
     fn print_current_slot_info(&self) {
         if let Some(entry) = self.day.entry_before_now() {
+            
             println!("Recent activity: {} (until {})", entry.1, entry.0.next());
         }
         println!(
@@ -453,6 +463,15 @@ impl UI<'_> {
         let start = self.day.now_or_last_entry();
         let end = now + 1;
         self.ask_about_activity(start, Slot(end));
+    }
+
+    fn add_comment_to_last_activity(&mut self) {
+        if let Some(entry) = self.day.entry_before_now_mut() {
+            println!("Please enter a comment to add to {}.", entry.1);
+            entry.1.comment = get_input();
+        } else {
+            println!("{}", "Please add a recent activity first!".red());
+        }
     }
 
     fn edit_with_text_editor(&mut self) {
@@ -698,6 +717,7 @@ fn main() {
                 println!("\tedit (e): Edit activities for today in text editor.");
                 println!("\tactivity (a): Enter an activity for a specific time span.");
                 println!("\tpath (p): Print today's data file path.");
+                println!("\tcomment (c): Add comment to last activity.");
                 println!();
                 println!("Current data file: {:?}", &file);
                 println!("Config file: {:?}", &settings_file);
@@ -806,6 +826,10 @@ fn main() {
             "u" | "until" => {
                 ui.print_current_slot_info();
                 ui.split(true);
+            },
+            "c" | "comment" => {
+                ui.print_current_slot_info();
+                ui.add_comment_to_last_activity();
             },
             "json" => {
                 let day_maps = (0..365).rev()
