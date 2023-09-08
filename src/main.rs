@@ -110,12 +110,18 @@ impl Settings {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Serialize, Deserialize, Debug, Clone, Eq, Hash)]
 struct Activity {
     name: String,
     productive: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     comment: Option<String>
+}
+
+impl PartialEq for Activity {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name
+    }
 }
 
 impl Activity {
@@ -483,9 +489,9 @@ impl UI<'_> {
     fn edit_with_text_editor(&mut self) {
         let tmp_file = PathBuf::from_str("/tmp/time-track.tmp").unwrap();
         let mut data = String::new();
-        writeln!(&mut data, "# Do not add or delete any lines in this document.");
-        writeln!(&mut data, "# Edit the activities and associated comments by changing the text.");
-        writeln!(&mut data, "# The time, activity name, and comment field (if any) must always be seperated by ' - '.");
+        writeln!(&mut data, "# Do not add or delete any lines in this document.").expect("write");
+        writeln!(&mut data, "# Edit the activities and associated comments by changing the text.").expect("write");
+        writeln!(&mut data, "# The time, activity name, and comment field (if any) must always be seperated by ' - '.").expect("write");
         self.day.slots().for_each(|(s, e, o)| {
             let mut name = "empty";
             let mut comment = "".to_string();
