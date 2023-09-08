@@ -258,11 +258,11 @@ impl Default for Day {
 
 impl Day {
     pub fn entry_before_now(&self) -> Option<(Slot, &Activity)> {
-        (*DAY_START..*Slot::now())
+        self.time_slots
+            .iter()
+            .enumerate()
             .rev()
-            .into_iter()
-            .map(|s| (s, &self.time_slots[s]))
-            .find(|it| it.1.is_some())
+            .find(|(_s, o)| o.is_some())
             .map(|(s, o)| (Slot(s), o.as_ref().unwrap()))
     }
 
@@ -271,7 +271,7 @@ impl Day {
             .iter_mut()
             .enumerate()
             .rev()
-            .find(|(s, o)| o.is_some())
+            .find(|(_s, o)| o.is_some())
             .map(|(s, o)| (Slot(s), o.as_mut().unwrap()))
     }
 
