@@ -47,6 +47,7 @@ struct Settings {
     git: String,
     data_dir: PathBuf,
     git_repos_dir: PathBuf,
+    git_author: String,
     activities: Vec<Activity>,
     #[serde(skip)]
     shortcuts: RefCell<Option<Shortcuts>>,
@@ -58,6 +59,7 @@ impl Default for Settings {
             editor: "vim".to_string(),
             git: "/usr/bin/git".to_string(),
             git_repos_dir: PathBuf::from("/Users/hilbiga/git"),
+            git_author: "Your Name".to_string(),
             data_dir: get_base_dirs().data_dir().into(),
             activities: vec![],
             shortcuts: RefCell::new(None),
@@ -416,6 +418,8 @@ impl UI<'_> {
                     .arg(format!("{}-{:02}-{:02} {}", today.year(), today.month(), today.day(), start.to_string()))
                     .arg("--before")
                     .arg(format!("{}-{:02}-{:02} {}", today.year(), today.month(), today.day(), end.to_string()))
+                    .arg("--author")
+                    .arg(&self.settings.git_author)
                     .current_dir(&repo)
                     .output()
                     .expect("failed to run git");
@@ -674,6 +678,20 @@ fn main() {
             productive: true,
             comment: None,
         });
+
+        let author = Command::new(&settings.git)
+            .arg("config")
+            .arg("--global")
+            .arg("user.name")
+            .output()
+            .ok()
+            .map(|output| output.stdout)
+            .filter(|output| output.len() > 1)
+            .map(|result| String::from_utf8_lossy(&result[..result.len()-1]).to_string());
+        if let Some(author) = author {
+            settings.git_author = author;
+        }
+
         let settings_str = toml::to_string(&settings).expect("seriaize");
         fs::write(&settings_file, settings_str).expect("write");
         println!("I have created a new config file here: {:?}", settings_file);
@@ -685,7 +703,7 @@ fn main() {
             .expect("read settings")
             .as_str(),
     )
-    .expect("parse settingsa");
+    .expect(&format!("parse settings {:?}", &settings_file));
 
     let file = PathBuf::from(settings.get_filename_today());
     let day = if file.exists() {
