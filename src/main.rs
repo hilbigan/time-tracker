@@ -468,9 +468,9 @@ impl UI<'_> {
     }
 
     fn add_comment_to_last_activity(&mut self) {
-        if let Some(entry) = self.day.entry_before_now_mut() {
-            println!("Please enter a comment to add to {}.", entry.1);
-            entry.1.comment = get_input();
+        if let Some(entry) = self.day.time_slots.iter_mut().rev().filter_map(|o| o.as_mut()).next() {
+            println!("Please enter a comment to add to {}.", entry);
+            entry.comment = get_input();
         } else {
             println!("{}", "Please add a recent activity first!".red());
         }
