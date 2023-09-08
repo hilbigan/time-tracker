@@ -707,17 +707,17 @@ fn main() {
         match arg.as_str() {
             "h" | "help" => {
                 println!("Commands:");
-                println!("\ttoday (t): Print statistics for today.");
+                println!("\tactivity (a): Enter an activity for a specific time span.");
+                println!("\tcomment (c): Add comment to last activity.");
                 println!("\tday (d): Print statistics for a specific day.");
                 println!("\tyesterday (yd): Print statistics for yesterday.");
+                println!("\tedit (e): Edit activities for today in text editor.");
+                println!("\tpath (p): Print today's data file path.");
+                println!("\tsplit (s): Split the time since the last recorded activity in two.");
+                println!("\ttoday (t): Print statistics for today.");
+                println!("\tuntil (u): Like split, but only enter the first activity.");
                 println!("\tweek (w, 2w, 3w): Print statistics for last seven, 14, 21 days.");
                 println!("\tyear (y): Print statistics for last year.");
-                println!("\tsplit (s): Split the time since the last recorded activity in two.");
-                println!("\tuntil (u): Like split, but only enter the first activity.");
-                println!("\tedit (e): Edit activities for today in text editor.");
-                println!("\tactivity (a): Enter an activity for a specific time span.");
-                println!("\tpath (p): Print today's data file path.");
-                println!("\tcomment (c): Add comment to last activity.");
                 println!();
                 println!("Current data file: {:?}", &file);
                 println!("Config file: {:?}", &settings_file);
