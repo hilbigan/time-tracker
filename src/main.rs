@@ -260,6 +260,7 @@ impl Day {
     pub fn entry_before_now(&self) -> Option<(Slot, &Activity)> {
         self.time_slots
             .iter()
+            .take(*Slot::now())
             .enumerate()
             .rev()
             .find(|(_s, o)| o.is_some())
@@ -269,6 +270,7 @@ impl Day {
     pub fn entry_before_now_mut(&mut self) -> Option<(Slot, &mut Activity)> {
         self.time_slots
             .iter_mut()
+            .take(*Slot::now())
             .enumerate()
             .rev()
             .find(|(_s, o)| o.is_some())
@@ -460,9 +462,9 @@ impl UI<'_> {
 
     fn ask_about_activity_now(&mut self) {
         let now = *Slot::now();
-        let start = self.day.now_or_last_entry();
+        let start = *self.day.now_or_last_entry();
         let end = now + 1;
-        self.ask_about_activity(start, Slot(end));
+        self.ask_about_activity(Slot(start), Slot(end));
     }
 
     fn add_comment_to_last_activity(&mut self) {
