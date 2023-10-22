@@ -669,7 +669,7 @@ impl UI<'_> {
     }
 }
 
-fn main() {
+fn get_or_create_settings() -> Option<Settings> {
     let settings_file = get_base_dirs()
         .config_dir()
         .join(CONFIG_FILENAME.to_string());
@@ -703,14 +703,23 @@ fn main() {
         fs::write(&settings_file, settings_str).expect("write");
         println!("I have created a new config file here: {:?}", settings_file);
         println!("Please edit it and restart the program! :)");
-        return;
+        return None;
     }
-    let settings: Settings = toml::from_str(
+
+    Some(toml::from_str(
         fs::read_to_string(&settings_file)
             .expect("read settings")
             .as_str(),
     )
-    .expect(&format!("parse settings {:?}", &settings_file));
+    .expect(&format!("parse settings {:?}", &settings_file)))
+}
+
+fn main() {
+    let settings = get_or_create_settings();
+    if settings.is_none() {
+        return;
+    }
+    let settings = settings.unwrap();
 
     let file = PathBuf::from(settings.get_filename_today());
     let day = if file.exists() {
@@ -747,6 +756,9 @@ fn main() {
                 println!("\tyear (y): Print statistics for last year.");
                 println!();
                 println!("Current data file: {:?}", &file);
+                let settings_file = get_base_dirs()
+                    .config_dir()
+                    .join(CONFIG_FILENAME.to_string());
                 println!("Config file: {:?}", &settings_file);
             },
             "p" | "path" => {
