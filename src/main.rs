@@ -478,6 +478,20 @@ impl UI<'_> {
         self.ask_about_activity(Slot(start), Slot(end));
     }
 
+    fn ask_about_day(&self) -> PathBuf {
+        let time = Local::now() - Duration::hours((*DAY_START / SLOTS_PER_HOUR) as i64);
+        let default_year = time.year() as usize;
+        let default_month = time.month() as usize;
+        let default_day = time.day() as usize;
+        print!("Year [{}] ", default_year);
+        let year = get_input::<usize>().unwrap_or(default_year);
+        print!("Month [{}] ", default_month);
+        let month = get_input::<usize>().unwrap_or(default_month);
+        print!("Day [{}] ", default_day);
+        let day = get_input::<usize>().unwrap_or(default_day);
+        return PathBuf::from(self.settings.get_filename_by_date(year, month, day));
+    }
+
     fn add_comment_to_last_activity(&mut self) {
         if let Some(entry) = self.day.time_slots.iter_mut().rev().filter_map(|o| o.as_mut()).next() {
             println!("Please enter a comment to add to {}.", entry);
@@ -665,6 +679,7 @@ impl UI<'_> {
     }
 
     fn save(&self) {
+        println!("{:?}", &self.file);
         self.day.write(&self.file);
     }
 }
@@ -794,17 +809,7 @@ fn main() {
                 }
             },
             "d" | "day" => {
-                let time = Local::now() - Duration::hours((*DAY_START / SLOTS_PER_HOUR) as i64);
-                let default_year = time.year() as usize;
-                let default_month = time.month() as usize;
-                let default_day = time.day() as usize;
-                print!("Year [{}] ", default_year);
-                let year = get_input::<usize>().unwrap_or(default_year);
-                print!("Month [{}] ", default_month);
-                let month = get_input::<usize>().unwrap_or(default_month);
-                print!("Day [{}] ", default_day);
-                let day = get_input::<usize>().unwrap_or(default_day);
-                let file = PathBuf::from(settings.get_filename_by_date(year, month, day));
+                let file = ui.ask_about_day();
                 println!("Loading file {:?}", file);
                 let day: Day = serde_json::from_str(
                     fs::read_to_string(file)
@@ -855,6 +860,19 @@ fn main() {
                 );
             },
             "e" | "edit" => {
+                let file = ui.ask_about_day();
+                println!("Loading file {:?}", file);
+                let day: Day = serde_json::from_str(
+                    fs::read_to_string(file.clone())
+                        .expect("could not read file")
+                        .as_str(),
+                )
+                .unwrap();
+                ui = UI {
+                    day,
+                    file,
+                    settings: &settings,
+                };
                 ui.print_current_slot_info();
                 ui.edit_with_text_editor();
             },
