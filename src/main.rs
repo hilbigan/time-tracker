@@ -375,10 +375,8 @@ impl Day {
             }
         });
         println!(
-            "Hours Productive: {}, Score: {:0.2} (time adjusted: {:0.2})",
-            self.hours_productive(),
-            self.score(),
-            self.score() * (DAY_SLOTS as f32 / *Slot::now() as f32)
+            "Hours Productive: {}",
+            self.hours_productive()
         );
     }
 
@@ -611,12 +609,11 @@ impl UI<'_> {
                 .unwrap();
                 if print_days {
                     println!(
-                        "{}, {:02}.{:02}.: {:4.1} hrs., Score: {:0.2} {}",
+                        "{}, {:02}.{:02}.: {:4.1} hrs. {}",
                         time.weekday().to_string(),
                         time.day(),
                         time.month(),
                         day.hours_productive(),
-                        day.score(),
                         day.activity_string(&self.settings, step_by)
                     );
                 }
@@ -656,7 +653,7 @@ impl UI<'_> {
         let score = hours as f32 / (days.len() as f32 * PRODUCTIVE_TARGET);
 
         println!("Aggregated statistics from the last {} days:", days.len());
-        println!("Hours Productive: {}, Score: {:0.2}", hours, score);
+        println!("Hours Productive: {}", hours);
         println!(
             "Target: {} x {} = {} hours; Difference: {:+} hours",
             PRODUCTIVE_TARGET,
