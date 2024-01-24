@@ -595,21 +595,31 @@ impl UI<'_> {
             return;
         }
         let choice = if possible_slots.len() == 1 {
-            Some(0)
+            Some(Slot(possible_slots[0]))
         } else {
-            println!("Where to split?");
-            for (i, s) in possible_slots.iter().enumerate() {
-                println!("{}: {}", i, Slot(*s));
+            println!(
+                "Where to split? (Enter '{}' or a time like '{}' or just '{}'. Leave {} for 'now'.)",
+                "now".bright_blue(),
+                "18:10".bright_blue(),
+                "18".bright_blue(),
+                "empty".bright_blue()
+            );
+            for s in possible_slots.iter() {
+                println!(" - {}", Slot(*s).to_string().bright_blue());
             }
-            get_input::<usize>()
+            get_input::<String>().and_then(|s| Slot::try_from(s).ok())
         };
         if let Some(choice) = choice {
-            self.ask_about_activity(now_or_last_entry, Slot(possible_slots[choice]));
-            if !only_one_split {
+            if possible_slots.contains(&choice) {
+                self.ask_about_activity(now_or_last_entry, choice);
+                if !only_one_split {
+                    self.save();
+                    self.ask_about_activity(choice, Slot::now().next());
+                }
                 self.save();
-                self.ask_about_activity(Slot(possible_slots[choice]), Slot::now().next());
+            } else {
+                println!("{}", "Invalid input!".red());
             }
-            self.save();
         }
     }
 
