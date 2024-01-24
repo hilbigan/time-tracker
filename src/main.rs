@@ -17,6 +17,7 @@ use std::str::FromStr;
 use std::{fmt, fs, io};
 
 pub const CONFIG_FILENAME: &str = "ttrc.toml";
+pub const CONFIG_OVERRIDE_ENV_VAR: &str = "TT_CONFIG";
 pub const SLOTS_PER_HOUR: usize = 4;
 pub const DAY_SLOTS: usize = 24 * SLOTS_PER_HOUR;
 pub const DAY_START: Slot = Slot(4 * SLOTS_PER_HOUR);
@@ -681,9 +682,16 @@ impl UI<'_> {
 }
 
 fn get_or_create_settings() -> Option<Settings> {
-    let settings_file = get_base_dirs()
-        .config_dir()
-        .join(CONFIG_FILENAME.to_string());
+    let mut settings_file: PathBuf;
+
+    if let Ok(path) = std::env::var(CONFIG_OVERRIDE_ENV_VAR) {
+        settings_file = PathBuf::from(path)
+    } else {
+        settings_file = get_base_dirs()
+            .config_dir()
+            .join(CONFIG_FILENAME.to_string());
+    }
+
     if !settings_file.exists() {
         let mut settings = Settings::default();
         settings.activities.push(Activity {
@@ -772,6 +780,7 @@ fn main() {
                     .config_dir()
                     .join(CONFIG_FILENAME.to_string());
                 println!("Config file: {:?}", &settings_file);
+                println!("Set {} to override config file path.", CONFIG_OVERRIDE_ENV_VAR);
             },
             "p" | "path" => {
                 println!("{}", file.display());
