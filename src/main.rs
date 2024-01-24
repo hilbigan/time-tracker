@@ -93,7 +93,7 @@ impl Settings {
         self.shortcuts.borrow().as_ref().unwrap().clone()
     }
 
-    fn get_filename_today(&self) -> String {
+    fn get_filename_today(&self) -> PathBuf {
         let time = Local::now() - Duration::hours((*DAY_START / SLOTS_PER_HOUR) as i64);
         self.get_filename_by_date(
             time.year() as usize,
@@ -102,12 +102,9 @@ impl Settings {
         )
     }
 
-    fn get_filename_by_date(&self, year: usize, month: usize, day: usize) -> String {
+    fn get_filename_by_date(&self, year: usize, month: usize, day: usize) -> PathBuf {
         self.data_dir
             .join(format!("{}-{}-{}.json", year, month, day))
-            .to_str()
-            .unwrap()
-            .into()
     }
 }
 
@@ -521,7 +518,7 @@ impl UI<'_> {
         let month = get_input::<usize>().unwrap_or(default_month);
         print!("Day [{}] ", default_day);
         let day = get_input::<usize>().unwrap_or(default_day);
-        return PathBuf::from(self.settings.get_filename_by_date(year, month, day));
+        return self.settings.get_filename_by_date(year, month, day);
     }
 
     fn add_comment_to_last_activity(&mut self) {
@@ -642,11 +639,11 @@ impl UI<'_> {
         }
         for date in dates {
             let time = date.borrow();
-            let file = PathBuf::from(self.settings.get_filename_by_date(
+            let file = self.settings.get_filename_by_date(
                 time.year() as usize,
                 time.month() as usize,
                 time.day() as usize,
-            ));
+            );
             if file.exists() {
                 let day: Day = serde_json::from_str(
                     fs::read_to_string(file)
@@ -852,7 +849,7 @@ fn main() {
             },
             "yd" | "yesterday" => {
                 let time = Local::now() - Duration::hours((*DAY_START / SLOTS_PER_HOUR) as i64) - Duration::days(1);
-                let file = PathBuf::from(settings.get_filename_by_date(time.year() as usize, time.month() as usize, time.day() as usize));
+                let file = settings.get_filename_by_date(time.year() as usize, time.month() as usize, time.day() as usize);
                 println!("Loading file {:?}", file);
                 let day: Day = serde_json::from_str(
                     fs::read_to_string(file)
@@ -870,7 +867,7 @@ fn main() {
 
                 let mut file = None;
                 while day > 1 {
-                    let file_path = PathBuf::from(settings.get_filename_by_date(year, month, day));
+                    let file_path = settings.get_filename_by_date(year, month, day);
                     if file_path.exists() {
                         file = Some(file_path);
                         break;
@@ -953,11 +950,11 @@ fn main() {
                 let day_maps = (0..365).rev()
                     .map(|i| Local::now() - Duration::days(i))
                     .filter_map(|time| {
-                        let file = PathBuf::from(settings.get_filename_by_date(
+                        let file = settings.get_filename_by_date(
                             time.year() as usize,
                             time.month() as usize,
                             time.day() as usize,
-                        ));
+                        );
                         if file.exists() {
                             Some(serde_json::from_str(
                                 fs::read_to_string(file)
