@@ -475,6 +475,7 @@ impl UI<'_> {
         let start = *self.day.now_or_last_entry();
         let end = now + 1;
         self.ask_about_activity(Slot(start), Slot(end));
+        self.save();
     }
 
     fn ask_about_day(&self) -> PathBuf {
@@ -495,6 +496,7 @@ impl UI<'_> {
         if let Some(entry) = self.day.time_slots.iter_mut().rev().filter_map(|o| o.as_mut()).next() {
             println!("Please enter a comment to add to {}.", entry);
             entry.comment = get_input();
+            self.save();
         } else {
             println!("{}", "Please add a recent activity first!".red());
         }
@@ -547,6 +549,7 @@ impl UI<'_> {
                     activity
                 })
                 .collect();
+            self.save();
         }
     }
 
@@ -574,6 +577,7 @@ impl UI<'_> {
                 self.save();
                 self.ask_about_activity(Slot(possible_slots[choice]), Slot::now().next());
             }
+            self.save();
         }
     }
 
@@ -677,6 +681,7 @@ impl UI<'_> {
     }
 
     fn save(&self) {
+        println!("{}", "Saved!".bright_blue());
         self.day.write(&self.file);
     }
 }
@@ -806,6 +811,7 @@ fn main() {
                             println!("{}", "End time <= start time!".red());
                         } else {
                             ui.ask_about_activity(start, end);
+                            ui.save();
                         }
                     } else {
                         println!("Invalid input.");
@@ -975,5 +981,4 @@ fn main() {
         ui.print_current_slot_info();
         ui.ask_about_activity_now();
     }
-    ui.save();
 }
