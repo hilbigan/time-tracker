@@ -676,7 +676,6 @@ impl UI<'_> {
     }
 
     fn save(&self) {
-        println!("{:?}", &self.file);
         self.day.write(&self.file);
     }
 }
@@ -759,6 +758,7 @@ fn main() {
                 println!("\tcomment (c): Add comment to last activity.");
                 println!("\tday (d): Print statistics for a specific day.");
                 println!("\tyesterday (yd): Print statistics for yesterday.");
+                println!("\tlastday (ld): Print statistics for the last day.");
                 println!("\tedit (e): Edit activities for today in text editor.");
                 println!("\tpath (p): Print today's data file path.");
                 println!("\tsplit (s): Split the time since the last recorded activity in two.");
@@ -827,6 +827,36 @@ fn main() {
                 )
                     .unwrap();
                 day.print_stats(false, true);
+            },
+            "ld" | "lastday" => {
+                let time = Local::now() - Duration::hours((*DAY_START / SLOTS_PER_HOUR) as i64) - Duration::days(1);
+                let year = time.year() as usize;
+                let month = time.month() as usize;
+                let mut day = time.day() as usize;
+
+                let mut file = None;
+                while day > 1 {
+                    let file_path = PathBuf::from(settings.get_filename_by_date(year, month, day));
+                    if file_path.exists() {
+                        file = Some(file_path);
+                        break;
+                    }
+                    day -= 1;
+                }
+
+                if let Some(file_path) = file {
+                    println!("Loading file {:?}", file_path);
+                    println!("Last day: {}-{}-{}", year, month, day);
+                    let day: Day = serde_json::from_str(
+                        fs::read_to_string(file_path)
+                            .expect("could not read file")
+                            .as_str(),
+                    )
+                        .unwrap();
+                    day.print_stats(false, true);
+                } else {
+                    println!("{}", "No data file found in this month.".red());
+                }
             },
             "t" | "today" => {
                 ui.print_current_slot_info();
