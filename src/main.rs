@@ -470,6 +470,38 @@ impl UI<'_> {
         }
     }
 
+    fn ask_about_start_and_end_time(&mut self) -> Option<(Slot, Slot)> {
+        println!(
+            "(Enter '{}' or a time like '{}' or just '{}'. Leave {} for 'now'.)",
+            "now".bright_blue(),
+            "18:10".bright_blue(),
+            "18".bright_blue(),
+            "empty".bright_blue()
+        );
+        println!("Start time:");
+        let start = get_input::<String>().and_then(|s| Slot::try_from(s).ok());
+        return if let Some(start) = start {
+            println!("~> {}", start.to_string().bold());
+            println!("End time:");
+            let end = get_input::<String>().and_then(|s| Slot::try_from(s).ok());
+            if let Some(end) = end {
+                println!("~> {}", end.to_string().bold());
+                if *end <= *start {
+                    println!("{}", "End time <= start time!".red());
+                    None
+                } else {
+                    Some((start, end))
+                }
+            } else {
+                println!("Invalid input.");
+                None
+            }
+        } else {
+            println!("Invalid input.");
+            None
+        }
+    }
+
     fn ask_about_activity_now(&mut self) {
         let now = *Slot::now();
         let start = *self.day.now_or_last_entry();
@@ -792,32 +824,9 @@ fn main() {
             }
             "a" | "activity" => {
                 ui.print_current_slot_info();
-                println!(
-                    "(Enter '{}' or a time like '{}' or just '{}'. Leave {} for 'now'.)",
-                    "now".bright_blue(),
-                    "18:10".bright_blue(),
-                    "18".bright_blue(),
-                    "empty".bright_blue()
-                );
-                println!("Start time:");
-                let start = get_input::<String>().and_then(|s| Slot::try_from(s).ok());
-                if let Some(start) = start {
-                    println!("~> {}", start.to_string().bold());
-                    println!("End time:");
-                    let end = get_input::<String>().and_then(|s| Slot::try_from(s).ok());
-                    if let Some(end) = end {
-                        println!("~> {}", end.to_string().bold());
-                        if *end <= *start {
-                            println!("{}", "End time <= start time!".red());
-                        } else {
-                            ui.ask_about_activity(start, end);
-                            ui.save();
-                        }
-                    } else {
-                        println!("Invalid input.");
-                    }
-                } else {
-                    println!("Invalid input.");
+                if let Some((start, end)) = ui.ask_about_start_and_end_time() {
+                    ui.ask_about_activity(start, end);
+                    ui.save();
                 }
             },
             "d" | "day" => {
