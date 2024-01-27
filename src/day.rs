@@ -13,11 +13,11 @@ use crate::{DAY_SLOTS, DAY_START, PRODUCTIVE_TARGET, SLOTS_PER_HOUR};
 use crate::settings::Settings;
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
-pub struct Slot(usize);
+pub struct Slot(pub usize);
 
 impl Slot {
     #[cfg(not(test))]
-    fn now() -> Slot {
+    pub fn now() -> Slot {
         let local = Local::now();
         let hour = local.hour();
         let minute = local.minute();
@@ -26,11 +26,11 @@ impl Slot {
 
     /// Always return 12:00 for tests
     #[cfg(test)]
-    fn now() -> Slot {
+    pub fn now() -> Slot {
         Slot(16)
     }
 
-    fn from_time(hour: usize, minute: usize) -> Slot {
+    pub fn from_time(hour: usize, minute: usize) -> Slot {
         let minutes_per_slot = 60 / SLOTS_PER_HOUR;
         Slot(
             (((hour * SLOTS_PER_HOUR + minute / minutes_per_slot) as isize - *DAY_START as isize

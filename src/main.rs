@@ -124,6 +124,8 @@ impl UI<'_> {
                     }
                 }
             }
+
+            self.save();
         } else {
             println!("I didn't get that.");
         }
@@ -166,7 +168,6 @@ impl UI<'_> {
         let start = *self.day.now_or_last_entry();
         let end = now + 1;
         self.ask_about_activity(Slot(start), Slot(end));
-        self.save();
     }
 
     fn ask_about_day(&self) -> PathBuf {
@@ -272,10 +273,8 @@ impl UI<'_> {
             if possible_slots.contains(&choice) {
                 self.ask_about_activity(now_or_last_entry, choice);
                 if !only_one_split {
-                    self.save();
                     self.ask_about_activity(choice, Slot::now().next());
                 }
-                self.save();
             } else {
                 println!("{}", "Invalid input!".red());
             }
@@ -495,7 +494,6 @@ fn main() {
                 ui.print_current_slot_info();
                 if let Some((start, end)) = ui.ask_about_start_and_end_time() {
                     ui.ask_about_activity(start, end);
-                    ui.save();
                 }
             },
             "d" | "day" => {
