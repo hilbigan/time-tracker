@@ -123,9 +123,10 @@ impl Day {
             .map(|(s, o)| (Slot(s), o.as_mut().unwrap()))
     }
 
-    pub fn slots(&self) -> impl Iterator<Item = (Slot, Slot, &Option<Activity>)> {
+    pub fn slots<'a>(&'a self) -> impl Iterator<Item = (Slot, Slot, Option<Activity>)> + 'a {
         self.time_slots
             .iter()
+            .cloned()
             .enumerate()
             .map(|(s, o)| (Slot(s), Slot(s).next(), o))
     }

@@ -201,14 +201,11 @@ impl UI<'_> {
         writeln!(&mut data, "# Edit the activities and associated comments by changing the text.").expect("write");
         writeln!(&mut data, "# The time, activity name, and comment field (if any) must always be seperated by ' - '.").expect("write");
         self.day.slots().for_each(|(s, e, o)| {
-            let mut name = "empty";
-            let mut comment = "".to_string();
-            if let Some(act) = o {
-                name = act.name.as_ref();
-                if let Some(c) = act.comment.as_ref() {
-                    comment = format!(" - {}", c.as_str());
-                }
-            }
+            let name = o.as_ref().map(|a| a.name.as_ref()).unwrap_or("empty");
+            let comment = o.as_ref()
+                .and_then(|a| a.comment.as_ref())
+                .map(|c| format!(" - {}", c.as_str()))
+                .unwrap_or("".to_string());
             writeln!(
                 &mut data,
                 "{}-{} - {}{}",
@@ -357,7 +354,6 @@ impl UI<'_> {
                 )
             })
             .collect();
-        let score = hours as f32 / (days.len() as f32 * PRODUCTIVE_TARGET);
 
         println!("Aggregated statistics from the last {} days:", days.len());
         println!("Hours Productive: {}", hours);
