@@ -298,6 +298,7 @@ impl UI<'_> {
             );
             println!("{}{}", " ".repeat(36), "| ".repeat(24 * (SLOTS_PER_HOUR / step_by / 2)))
         }
+        let mut print = false;
         for date in dates {
             let time = date.borrow();
             let file = self.settings.get_filename_by_date(
@@ -306,13 +307,14 @@ impl UI<'_> {
                 time.day() as usize,
             );
             if file.exists() {
+                print = true;
                 let day: Day = serde_json::from_str(
                     fs::read_to_string(file)
                         .expect("could not read file")
                         .as_str(),
                 )
                 .unwrap();
-                if print_days {
+                if print_days && print {
                     println!(
                         "{}, {:02}.{:02}.: {:4.1} hrs. {}",
                         time.weekday().to_string(),
@@ -323,9 +325,9 @@ impl UI<'_> {
                     );
                 }
                 days.push(day);
-            } else if print_days {
+            } else if print {
                 println!(
-                    "{}, {:02}.{:02}.: no data",
+                    "{}, {:02}.{:02}.:  no data",
                     time.weekday().to_string(),
                     time.day(),
                     time.month()
@@ -574,7 +576,7 @@ fn main() {
             "y" | "year" => {
                 ui.multiday_statistics(
                     (0..365).rev().map(|i| Local::now() - Duration::days(i)),
-                    false,
+                    true,
                 );
             },
             "e" | "edit" => {
