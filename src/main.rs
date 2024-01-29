@@ -242,14 +242,14 @@ impl UI<'_> {
         }
     }
 
-    fn split(&mut self, only_one_split: bool) {
+    fn split(&mut self, only_one_split: bool) -> bool {
         let now_or_last_entry = self.day.now_or_last_entry();
         let possible_slots = (*now_or_last_entry + 1..*Slot::now() + 1)
             .into_iter()
             .collect::<Vec<_>>();
         if possible_slots.is_empty() {
             println!("{}", "There's nothing to split!".red());
-            return;
+            return false;
         }
         let choice = if possible_slots.len() == 1 {
             Some(Slot(possible_slots[0]))
@@ -272,10 +272,13 @@ impl UI<'_> {
                 if !only_one_split {
                     self.ask_about_activity(choice, Slot::now().next());
                 }
+                return true;
             } else {
                 println!("{}", "Invalid input!".red());
+                return false;
             }
         }
+        return false;
     }
 
     /// Print statistics for multiple days. Might skip some days if the
@@ -452,7 +455,6 @@ fn main() {
         )
         .unwrap()
     } else {
-        println!("Using new file {:?}", file);
         Day::default()
     };
     assert_eq!(day.time_slots.len(), DAY_SLOTS, "Loaded day file {} is invalid.", file.display());
@@ -462,7 +464,10 @@ fn main() {
         settings: &settings,
     };
     if let Some(arg) = std::env::args().nth(1) {
-        match arg.as_str() {
+        let index = arg.chars().find_position(|c| c.is_alphabetic()).map(|(i, _)| i).unwrap_or(0);
+        let (count_str, arg) = arg.split_at(index);
+        let count = count_str.parse::<usize>().unwrap_or(1);
+        match arg {
             "h" | "help" => {
                 println!("Commands:");
                 println!("\tactivity (a): Enter an activity for a specific time span.");
@@ -489,21 +494,30 @@ fn main() {
                 println!("{}", file.display());
             }
             "a" | "activity" => {
-                ui.print_current_slot_info();
-                if let Some((start, end)) = ui.ask_about_start_and_end_time() {
-                    ui.ask_about_activity(start, end);
+                for _ in 0..count {
+                    ui.print_current_slot_info();
+                    if let Some((start, end)) = ui.ask_about_start_and_end_time() {
+                        ui.ask_about_activity(start, end);
+                    }
                 }
             },
             "d" | "day" => {
-                let file = ui.ask_about_day();
-                println!("Loading file {:?}", file);
-                let day: Day = serde_json::from_str(
-                    fs::read_to_string(file)
-                        .expect("could not read file")
-                        .as_str(),
-                )
-                .unwrap();
-                day.print_stats(false, true);
+                if count != 1 {
+                    ui.multiday_statistics(
+                        (0..count as i64).rev().map(|i| Local::now() - Duration::days(i)),
+                        true,
+                    );
+                } else {
+                    let file = ui.ask_about_day();
+                    println!("Loading file {:?}", file);
+                    let day: Day = serde_json::from_str(
+                        fs::read_to_string(file)
+                            .expect("could not read file")
+                            .as_str(),
+                    )
+                        .unwrap();
+                    day.print_stats(false, true);
+                }
             },
             "yd" | "yesterday" => {
                 let time = Local::now() - Duration::hours((*DAY_START / SLOTS_PER_HOUR) as i64) - Duration::days(1);
@@ -553,26 +567,14 @@ fn main() {
             },
             "w" | "week" => {
                 ui.multiday_statistics(
-                    (0..7).rev().map(|i| Local::now() - Duration::days(i)),
-                    true,
-                );
-            },
-            "2w" | "2week" => {
-                ui.multiday_statistics(
-                    (0..14).rev().map(|i| Local::now() - Duration::days(i)),
-                    true,
-                );
-            },
-            "3w" | "3week" => {
-                ui.multiday_statistics(
-                    (0..21).rev().map(|i| Local::now() - Duration::days(i)),
+                    (0..(7 * count) as i64).rev().map(|i| Local::now() - Duration::days(i)),
                     true,
                 );
             },
             "y" | "year" => {
                 ui.multiday_statistics(
-                    (0..365).rev().map(|i| Local::now() - Duration::days(i)),
-                    true,
+                    (0..(365 * count) as i64).rev().map(|i| Local::now() - Duration::days(i)),
+                    false,
                 );
             },
             "e" | "edit" => {
@@ -594,6 +596,13 @@ fn main() {
             },
             "s" | "split" => {
                 ui.print_current_slot_info();
+                let mut i = count;
+                while i > 2 {
+                    if !ui.split(true) {
+                        return;
+                    }
+                    i -= 1;
+                }
                 ui.split(false);
             },
             "u" | "until" => {
@@ -603,6 +612,17 @@ fn main() {
             "c" | "comment" => {
                 ui.print_current_slot_info();
                 ui.add_comment_to_last_activity();
+            },
+            "clear" => {
+                if file.exists() {
+                    println!("{} Are you sure you want to delete today's file? (y/N)", "DANGER:".red());
+                    if let Some("y") = get_input::<String>().as_ref().map(|s| s.as_str()) {
+                        fs::remove_file(&file).expect("remove file");
+                        println!("{} {:?}.", "Deleted".bright_blue(), file);
+                    }
+                } else {
+                    println!("No file to delete.");
+                }
             },
             "json" => {
                 let day_maps = (0..365).rev()
