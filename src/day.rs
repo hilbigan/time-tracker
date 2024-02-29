@@ -139,7 +139,7 @@ impl Day {
             .scan(None, |state: &mut Option<(usize, Option<Activity>)>, (i, o)| {
                 if let Some((start, act)) = state {
                     // Split if activities are different or comments are different
-                    if *act != o || act.as_ref().zip(o.as_ref()).map_or(false, |(a, b)| a.comment != b.comment) {
+                    if *act != o || act.as_ref().zip(o.as_ref()).map_or(false, |(a, b)| a.comment != b.comment && b.comment.is_some()) {
                         let result = Some(Some((Slot(*start), Slot(i), act.clone())));
                         *state = Some((i, o));
                         result
