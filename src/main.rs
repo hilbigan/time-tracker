@@ -208,9 +208,8 @@ impl UI<'_> {
                 .unwrap_or("".to_string());
             writeln!(
                 &mut data,
-                "{}-{} - {}{}",
+                "{} - {}{}",
                 s,
-                e,
                 name,
                 comment
             )
@@ -225,20 +224,29 @@ impl UI<'_> {
             println!("Editor exited with non-zero exit code!");
         } else {
             let data = fs::read_to_string(tmp_file).expect("could not read file");
+            let len = self.day.time_slots.len();
             self.day.time_slots = data
                 .lines()
                 .filter(|o| !o.starts_with("#"))
                 .map(|o| {
                     let mut splits = o.split(" - ");
                     splits.next().expect("format");
-                    let mut activity = Activity::get_by_name(&self.settings.activities, splits.next().expect("format"));
+                    let activity_name = splits.next().expect("format");
+                    let mut activity = Activity::get_by_name(&self.settings.activities, activity_name);
                     if let Some(act) = activity.as_mut() {
                         act.comment = splits.next().map(|s| s.to_string());
+                    } else if activity_name != "empty" {
+                        println!("{}: Ignoring slot with unrecognized activity name '{}'!", "Warning".bright_yellow(), activity_name);
                     }
                     activity
                 })
                 .collect();
-            self.save();
+            
+            if len == self.day.time_slots.len() {
+                self.save();
+            } else {
+                println!("{}", "One or more time slots were invalid!".red());
+            }
         }
     }
 
@@ -475,13 +483,18 @@ fn main() {
                 println!("\tday (d): Print statistics for a specific day.");
                 println!("\tyesterday (yd): Print statistics for yesterday.");
                 println!("\tlastday (ld): Print statistics for the last day.");
-                println!("\tedit (e): Edit activities for today in text editor.");
+                println!("\tedit (e): Edit activities for a specific day in text editor.");
+                println!("\tedittoday (ed): Edit activities for today in text editor.");
                 println!("\tpath (p): Print today's data file path.");
-                println!("\tsplit (s): Split the time since the last recorded activity in two.");
+                println!("\tsplit (s): Split the time since the last recorded activity in two (three, ...)");
                 println!("\ttoday (t): Print statistics for today.");
                 println!("\tuntil (u): Like split, but only enter the first activity.");
-                println!("\tweek (w, 2w, 3w): Print statistics for last seven, 14, 21 days.");
+                println!("\tweek (w): Print statistics for last seven days.");
                 println!("\tyear (y): Print statistics for last year.");
+                println!("\t{}", "Tip: many commands work with a prefixed count, e.g.: 3s, 3d, 3w, ...".bright_blue());
+                println!();
+                println!("Danger zone:");
+                println!("\tclear: Delete today's file.");
                 println!();
                 println!("Current data file: {:?}", &file);
                 let settings_file = get_base_dirs()
@@ -591,7 +604,9 @@ fn main() {
                     file,
                     settings: &settings,
                 };
-                ui.print_current_slot_info();
+                ui.edit_with_text_editor();
+            },
+            "ed" | "edittoday" => {
                 ui.edit_with_text_editor();
             },
             "s" | "split" => {
