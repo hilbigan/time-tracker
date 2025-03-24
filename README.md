@@ -29,16 +29,27 @@ usage.
 
 ```
 Commands:
+	activity (a): Enter an activity for a specific time span.
+	comment (c): Add comment to last activity.
+	day (d): Print statistics for a specific day.
+	yesterday (yd): Print statistics for yesterday.
+	lastday (ld): Print statistics for the last day.
+	edit (e): Edit activities for a specific day in text editor.
+	edittoday (ed): Edit activities for today in text editor.
+	path (p): Print today's data file path.
+	split (s): Split the time since the last recorded activity in two (three, ...)
 	today (t): Print statistics for today.
-	day (d): Print statistics for certain day.
+	until (u): Like split, but only enter the first activity.
 	week (w): Print statistics for last seven days.
 	year (y): Print statistics for last year.
-	split (s): Split the time since the last recorded activity in two.
-	edit (e): Edit activities for today in text editor.
-	activity (a): Enter an activity for a specific time span.
+	Tip: many commands work with a prefixed count, e.g.: 3s, 3d, 3w, ...
 
-Current data file: "/home/aaron/.local/share/2021-7-20.json"
+Danger zone:
+	clear: Delete today's file.
+
+Current data file: "/home/aaron/.local/share/2025-3-24.json"
 Config file: "/home/aaron/.config/ttrc.toml"
+Set TT_CONFIG to override config file path.
 ```
 
 ## Build
