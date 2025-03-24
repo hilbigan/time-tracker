@@ -19,7 +19,6 @@ https://github.com/hilbigan/time-tracker/releases
 <div style="text-align:center">
 <img src="./screenshots/screenshot-0.png" alt="UI">
 <img src="./screenshots/screenshot-1.png" alt="Statistics">
-<img src="./screenshots/screenshot-2.png" alt="UI">
 </div>
 
 ## Usage
