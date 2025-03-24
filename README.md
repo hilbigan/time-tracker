@@ -1,7 +1,7 @@
 # Time-Tracker
 
 Small time-tracking / productivity tool for myself by myself.
-Records activities in 30min slots and reports on
+Records activities in 15min[^1] slots and reports on
 productivity.
 
 ## Features
@@ -24,7 +24,7 @@ https://github.com/hilbigan/time-tracker/releases
 ## Usage
 
 Run without any command to get prompted for activity since last
-usage.
+usage. The first time you run time-tracker, a config file will be created.
 
 ```
 Commands:
@@ -64,3 +64,5 @@ Test
 ```
 cargo test
 ```
+
+[^1]: Configurable, see `src/main.rs::SLOTS_PER_HOUR`
