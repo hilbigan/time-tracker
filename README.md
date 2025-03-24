@@ -51,6 +51,79 @@ Config file: "/home/aaron/.config/ttrc.toml"
 Set TT_CONFIG to override config file path.
 ```
 
+## Example Workflow
+
+It is 23:10, let's start by checking what we've done today, so far:
+
+```
+$ time-tracker today
+Recent activity: Break (until 20:30)
+Current slot: 23:00 (no activity so far)
+20:00-20:30 - Break
+Hours Productive: 0
+```
+
+We had a break from 20:00-20:30 and have not registered any activities since then.
+Let's say we want to register "Work" from 20:30-22:00 and "Learn" after that until now.
+Running time-tracker with no arguments asks us what we've been doing since 20:30, which is not quite what we want:
+
+```
+$ time-tracker
+Recent activity: Break (until 20:30)
+Current slot: 23:00 (no activity so far)
+What did you do from 20:30 - 23:15?
+	0: [L]earn
+	1: [W]ork
+	2: [B]reak
+	3: [T]ravel / Commute
+	4: [H]obby
+?: ^C
+```
+
+CTRL+C that, we can enter both activities in one go instead using `split`:
+
+```
+$ time-tracker split
+Recent activity: Break (until 20:30)
+Current slot: 23:00 (no activity so far)
+Where to split? (Enter 'now' or a time like '18:10' or just '18'. Leave empty for 'now'.)
+ - 20:45
+ - 21:00
+ - 21:15
+ - 21:30
+ - 21:45
+ - 22:00
+ - 22:15
+ - 22:30
+ - 22:45
+ - 23:00
+?: 22
+What did you do from 20:30 - 22:00?
+	0: [L]earn
+	1: [W]ork
+	2: [B]reak
+	3: [T]ravel / Commute
+	4: [H]obby
+?: W
+~> Work
+Saved!
+What did you do from 22:00 - 23:15?
+	0: [L]earn
+	1: [W]ork
+	2: [B]reak
+	3: [T]ravel / Commute
+	4: [H]obby
+?: L
+~> Learn
+Include as comment:
+1: time-tracker: 3275c38 Update README.md
+?:
+Saved!
+```
+
+Note that time-tracker picked up that we made a `git commit` during the latter time span, but we decline to include that here.
+Note you can also use `3s` (`s` = `split`) to record three different activities for the elapsed time.
+
 ## Build
 
 Build
